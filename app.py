@@ -334,7 +334,7 @@ def main():
         st.write("**Database:** not in use yet")
         st.divider()
         st.write(
-            "Upload a site photo and click Detect to run the trained image model. "
+            "Upload one or more site photos and click Detect all photos to run the trained image model. "
             "Video is still a preview. The history rows are demo data."
         )
 
@@ -347,8 +347,8 @@ def main():
             <p class="eyebrow">Construction safety monitoring</p>
             <h1>BuildGuard AI</h1>
             <p class="lead">
-                A college project for watching construction-site safety.
-                Upload a site photo and click Detect to run the trained YOLO model.
+                A college project for construction-site safety monitoring.
+                Upload one or more site photos and click Detect all photos to run the trained YOLO model.
                 The page shows the predicted boxes, class names, and confidence scores.
                 Video detection is not connected yet.
             </p>
@@ -383,18 +383,19 @@ def main():
     with image_column:
         # border=True draws a white card around this upload box.
         with st.container(border=True):
-            st.markdown("**Image upload**")
-            st.write("Choose a site photo, then click Detect.")
-            image_file = st.file_uploader(
-                "Site photo",
+            st.markdown("**Photo upload**")
+            st.write("Choose one or more site photos, then click Detect all photos.")
+            image_files = st.file_uploader(
+                "Site photos",
                 type=["jpg", "jpeg", "png", "webp"],
+                accept_multiple_files=True,
                 key="image_upload",
-                help="Accepted types: JPG, JPEG, PNG, WEBP.",
+                help="Accepted types: JPG, JPEG, PNG, WEBP. You can select multiple photos.",
             )
             detect_clicked = st.button(
-                "Detect",
+                "Detect all photos",
                 type="primary",
-                disabled=image_file is None,
+                disabled=not image_files,
                 key="detect_image_button",
             )
 
@@ -409,59 +410,81 @@ def main():
                 help="Accepted types: MP4, MOV, AVI, WEBM. No detection is run.",
             )
 
-    if detect_clicked and image_file is not None:
-        with st.spinner("Running the trained YOLO model on this photo..."):
-            outcome = detection.detect_image(image_file)
-        st.session_state["image_detection"] = {
-            "name": image_file.name,
-            "size": image_file.size,
-            "outcome": outcome,
-        }
+    # Run detection on every selected photo when the button is clicked.
+    if detect_clicked and image_files:
+        results = []
+        for image_file in image_files:
+            with st.spinner(f"Running detection on {image_file.name}..."):
+                # Pass a fresh in-memory copy so each file starts at byte zero.
+                from io import BytesIO
+                outcome = detection.detect_image(BytesIO(image_file.getvalue()))
 
-    saved = st.session_state.get("image_detection")
-    current_image = None
-    if (
-        image_file is not None
-        and saved is not None
-        and saved.get("name") == image_file.name
-        and saved.get("size") == image_file.size
-    ):
-        current_image = saved["outcome"]
+            results.append({
+                "name": image_file.name,
+                "size": image_file.size,
+                "outcome": outcome,
+            })
+
+        st.session_state["image_detections"] = results
+
+    saved_results = st.session_state.get("image_detections", [])
 
     # 5. Results.
     st.subheader("Detection results")
     show_model_notice(model_ready)
 
-    if image_file is None and video_file is None:
-        st.write("Upload an image or a video above. The preview will appear here.")
+    if not image_files and video_file is None:
+        st.write("Upload one or more photos or a video above. The preview will appear here.")
 
-    if image_file is not None:
-        st.markdown("**Uploaded image**")
-        if current_image is None:
-            st.image(image_file, use_container_width=True)
-            st.caption(f"{image_file.name} — click Detect to run the trained model.")
-        elif not current_image["ok"]:
-            st.image(image_file, use_container_width=True)
-            st.error(current_image["error"] or "Detection failed.")
-        else:
-            st.image(
-                current_image["annotated_image"],
-                caption=f"{image_file.name} — predicted boxes",
-                use_container_width=True,
+    if image_files:
+        st.markdown("**Uploaded photos and results**")
+
+        for image_file in image_files:
+            matching_result = next(
+                (
+                    item for item in saved_results
+                    if item.get("name") == image_file.name
+                    and item.get("size") == image_file.size
+                ),
+                None,
             )
-            detections = current_image["detections"]
-            st.markdown("**Predicted classes**")
-            if detections:
-                show_detection_table(detections)
+
+            current_image = (
+                matching_result["outcome"]
+                if matching_result is not None
+                else None
+            )
+
+            st.divider()
+            st.markdown(f"**Photo: {image_file.name}**")
+
+            if current_image is None:
+                st.image(image_file.getvalue(), use_container_width=True)
+                st.caption("Click Detect all photos to run the trained model.")
+            elif not current_image["ok"]:
+                st.image(image_file.getvalue(), use_container_width=True)
+                st.error(current_image["error"] or "Detection failed.")
             else:
-                st.info(
-                    "The model finished and did not predict any class above "
-                    "the confidence threshold of 25%. That is not a safety clearance."
+                st.image(
+                    current_image["annotated_image"],
+                    caption=f"{image_file.name} — predicted boxes",
+                    use_container_width=True,
                 )
-            st.caption(
-                "Each row is one box from the model. The class name is copied from "
-                "the weight file. This page does not add a violation when a PPE class is missing."
-            )
+                detections = current_image["detections"]
+                st.markdown("**Predicted classes**")
+
+                if detections:
+                    show_detection_table(detections)
+                else:
+                    st.info(
+                        "The model finished and did not predict any class above "
+                        "the confidence threshold of 25%. That is not a safety clearance."
+                    )
+
+                st.caption(
+                    "Each row is one model prediction. These predictions are not "
+                    "certified safety findings and do not by themselves establish a violation."
+                )
 
     if video_file is not None:
         st.markdown("**Uploaded video**")
