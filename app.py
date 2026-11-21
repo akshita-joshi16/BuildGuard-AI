@@ -95,7 +95,7 @@ def apply_design():
 
     """Add the navy, white, and orange look on top of Streamlit."""
 
-    st.markdown(
+    st.html(
 
         """
 
@@ -409,8 +409,6 @@ div[data-testid="stSidebar"] label {
 
 """,
 
-        unsafe_allow_html=True,
-
     )
 
 
@@ -421,7 +419,7 @@ def stat_card(label, value, note):
 
     """Draw one white statistics card."""
 
-    st.markdown(
+    st.html(
 
         f"""
 
@@ -436,8 +434,6 @@ def stat_card(label, value, note):
 </div>
 
 """,
-
-        unsafe_allow_html=True,
 
     )
 
@@ -473,7 +469,7 @@ def show_history():
 
 
 
-    st.markdown(
+    st.html(
 
         f"""
 
@@ -515,8 +511,6 @@ def show_history():
 
 """,
 
-        unsafe_allow_html=True,
-
     )
 
 
@@ -529,7 +523,7 @@ def show_model_notice(model_ready):
 
     if model_ready:
 
-        st.markdown(
+        st.html(
 
             """
 
@@ -555,15 +549,13 @@ def show_model_notice(model_ready):
 
 """,
 
-            unsafe_allow_html=True,
-
         )
 
         return
 
 
 
-    st.markdown(
+    st.html(
 
         """
 
@@ -584,8 +576,6 @@ def show_model_notice(model_ready):
 </div>
 
 """,
-
-        unsafe_allow_html=True,
 
     )
 
@@ -685,7 +675,7 @@ def main():
 
     # 1. Title and introduction.
 
-    st.markdown(
+    st.html(
 
         """
 
@@ -710,8 +700,6 @@ def main():
 </div>
 
 """,
-
-        unsafe_allow_html=True,
 
     )
 
@@ -1056,7 +1044,7 @@ def main():
 
 
 
-    st.markdown(
+    st.html(
 
         """
 
@@ -1067,8 +1055,6 @@ def main():
 </p>
 
 """,
-
-        unsafe_allow_html=True,
 
     )
 
