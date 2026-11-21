@@ -99,315 +99,315 @@ def apply_design():
 
         """
 
-        <style>
+<style>
 
-        .stApp {
+.stApp {
 
-            background-color: #F3F6FB;
+    background-color: #F3F6FB;
 
-            color: #0B1F3A;
+    color: #0B1F3A;
 
-        }
+}
 
-        .block-container {
+.block-container {
 
-            padding-top: 1.4rem;
+    padding-top: 1.4rem;
 
-            padding-bottom: 2.5rem;
+    padding-bottom: 2.5rem;
 
-            max-width: 1180px;
+    max-width: 1180px;
 
-        }
+}
 
-        h1, h2, h3, p, label {
+h1, h2, h3, p, label {
 
-            color: #0B1F3A;
+    color: #0B1F3A;
 
-        }
+}
 
-        .hero {
+.hero {
 
-            background: linear-gradient(135deg, #0B1F3A 0%, #16345C 100%);
+    background: linear-gradient(135deg, #0B1F3A 0%, #16345C 100%);
 
-            color: #FFFFFF;
+    color: #FFFFFF;
 
-            border-radius: 18px;
+    border-radius: 18px;
 
-            padding: 32px 36px 28px 36px;
+    padding: 32px 36px 28px 36px;
 
-            border-top: 7px solid #F97316;
+    border-top: 7px solid #F97316;
 
-            margin-bottom: 8px;
+    margin-bottom: 8px;
 
-        }
+}
 
-        .hero p,
+.hero p,
 
-        .hero h1,
+.hero h1,
 
-        .eyebrow {
+.eyebrow {
 
-            color: #FFFFFF;
+    color: #FFFFFF;
 
-        }
+}
 
-        .hero h1 {
+.hero h1 {
 
-            font-size: 2.4rem;
+    font-size: 2.4rem;
 
-            line-height: 1.15;
+    line-height: 1.15;
 
-            margin: 8px 0 10px 0;
+    margin: 8px 0 10px 0;
 
-            font-weight: 700;
+    font-weight: 700;
 
-        }
+}
 
-        .hero .lead {
+.hero .lead {
 
-            font-size: 1.05rem;
+    font-size: 1.05rem;
 
-            line-height: 1.55;
+    line-height: 1.55;
 
-            max-width: 740px;
+    max-width: 740px;
 
-            margin: 0;
+    margin: 0;
 
-            color: #E7EEF8;
+    color: #E7EEF8;
 
-        }
+}
 
-        .eyebrow {
+.eyebrow {
 
-            letter-spacing: 0.08em;
+    letter-spacing: 0.08em;
 
-            text-transform: uppercase;
+    text-transform: uppercase;
 
-            font-size: 0.78rem;
+    font-size: 0.78rem;
 
-            font-weight: 700;
+    font-weight: 700;
 
-            color: #FDBA74;
+    color: #FDBA74;
 
-            margin: 0;
+    margin: 0;
 
-        }
+}
 
-        .card {
+.card {
 
-            background: #FFFFFF;
+    background: #FFFFFF;
 
-            border: 1px solid #E3EAF3;
+    border: 1px solid #E3EAF3;
 
-            border-radius: 14px;
+    border-radius: 14px;
 
-            padding: 16px 18px 14px 18px;
+    padding: 16px 18px 14px 18px;
 
-            box-shadow: 0 8px 22px rgba(11, 31, 58, 0.05);
+    box-shadow: 0 8px 22px rgba(11, 31, 58, 0.05);
 
-            min-height: 132px;
+    min-height: 132px;
 
-        }
+}
 
-        .card-label {
+.card-label {
 
-            color: #5C6B80;
+    color: #5C6B80;
 
-            font-size: 0.86rem;
+    font-size: 0.86rem;
 
-            font-weight: 600;
+    font-weight: 600;
 
-            margin: 0;
+    margin: 0;
 
-        }
+}
 
-        .card-value {
+.card-value {
 
-            color: #0B1F3A;
+    color: #0B1F3A;
 
-            font-size: 1.7rem;
+    font-size: 1.7rem;
 
-            font-weight: 700;
+    font-weight: 700;
 
-            margin: 8px 0 6px 0;
+    margin: 8px 0 6px 0;
 
-            line-height: 1.1;
+    line-height: 1.1;
 
-        }
+}
 
-        .card-note {
+.card-note {
 
-            color: #9A3412;
+    color: #9A3412;
 
-            background: #FFF4EB;
+    background: #FFF4EB;
 
-            display: inline-block;
+    display: inline-block;
 
-            border-radius: 999px;
+    border-radius: 999px;
 
-            padding: 2px 8px;
+    padding: 2px 8px;
 
-            font-size: 0.75rem;
+    font-size: 0.75rem;
 
-            font-weight: 700;
+    font-weight: 700;
 
-            margin: 0;
+    margin: 0;
 
-        }
+}
 
-        .notice {
+.notice {
 
-            background: #FFF7ED;
+    background: #FFF7ED;
 
-            border: 1px solid #FDBA74;
+    border: 1px solid #FDBA74;
 
-            border-left: 6px solid #F97316;
+    border-left: 6px solid #F97316;
 
-            border-radius: 12px;
+    border-radius: 12px;
 
-            padding: 14px 16px;
+    padding: 14px 16px;
 
-            margin: 8px 0 14px 0;
+    margin: 8px 0 14px 0;
 
-        }
+}
 
-        .notice strong {
+.notice strong {
 
-            color: #9A3412;
+    color: #9A3412;
 
-            font-size: 1.05rem;
+    font-size: 1.05rem;
 
-        }
+}
 
-        .notice p {
+.notice p {
 
-            color: #7C2D12;
+    color: #7C2D12;
 
-            margin: 6px 0 0 0;
+    margin: 6px 0 0 0;
 
-            line-height: 1.5;
+    line-height: 1.5;
 
-        }
+}
 
-        .demo-banner {
+.demo-banner {
 
-            background: #0B1F3A;
+    background: #0B1F3A;
 
-            color: #FFFFFF;
+    color: #FFFFFF;
 
-            border-radius: 12px;
+    border-radius: 12px;
 
-            padding: 12px 16px;
+    padding: 12px 16px;
 
-            margin-bottom: 12px;
+    margin-bottom: 12px;
 
-        }
+}
 
-        .demo-banner strong,
+.demo-banner strong,
 
-        .demo-banner span {
+.demo-banner span {
 
-            color: #FFFFFF;
+    color: #FFFFFF;
 
-        }
+}
 
-        .history-table {
+.history-table {
 
-            width: 100%;
+    width: 100%;
 
-            border-collapse: collapse;
+    border-collapse: collapse;
 
-            background: #FFFFFF;
+    background: #FFFFFF;
 
-            border-radius: 12px;
+    border-radius: 12px;
 
-            overflow: hidden;
+    overflow: hidden;
 
-        }
+}
 
-        .history-table th {
+.history-table th {
 
-            text-align: left;
+    text-align: left;
 
-            background: #0B1F3A;
+    background: #0B1F3A;
 
-            color: #FFFFFF;
+    color: #FFFFFF;
 
-            padding: 10px 12px;
+    padding: 10px 12px;
 
-            font-size: 0.86rem;
+    font-size: 0.86rem;
 
-        }
+}
 
-        .history-table td {
+.history-table td {
 
-            padding: 10px 12px;
+    padding: 10px 12px;
 
-            border-bottom: 1px solid #E8EEF5;
+    border-bottom: 1px solid #E8EEF5;
 
-            color: #0B1F3A;
+    color: #0B1F3A;
 
-            font-size: 0.92rem;
+    font-size: 0.92rem;
 
-        }
+}
 
-        .history-table tr:last-child td {
+.history-table tr:last-child td {
 
-            border-bottom: none;
+    border-bottom: none;
 
-        }
+}
 
-        .tag {
+.tag {
 
-            background: #FFF4EB;
+    background: #FFF4EB;
 
-            color: #C2410C;
+    color: #C2410C;
 
-            border-radius: 999px;
+    border-radius: 999px;
 
-            padding: 2px 8px;
+    padding: 2px 8px;
 
-            font-weight: 700;
+    font-weight: 700;
 
-            font-size: 0.78rem;
+    font-size: 0.78rem;
 
-        }
+}
 
-        .footer-note {
+.footer-note {
 
-            color: #5C6B80;
+    color: #5C6B80;
 
-            font-size: 0.88rem;
+    font-size: 0.88rem;
 
-            margin-top: 18px;
+    margin-top: 18px;
 
-        }
+}
 
-        div[data-testid="stSidebar"] {
+div[data-testid="stSidebar"] {
 
-            background-color: #0B1F3A;
+    background-color: #0B1F3A;
 
-        }
+}
 
-        div[data-testid="stSidebar"] p,
+div[data-testid="stSidebar"] p,
 
-        div[data-testid="stSidebar"] span,
+div[data-testid="stSidebar"] span,
 
-        div[data-testid="stSidebar"] h1,
+div[data-testid="stSidebar"] h1,
 
-        div[data-testid="stSidebar"] h2,
+div[data-testid="stSidebar"] h2,
 
-        div[data-testid="stSidebar"] h3,
+div[data-testid="stSidebar"] h3,
 
-        div[data-testid="stSidebar"] label {
+div[data-testid="stSidebar"] label {
 
-            color: #F8FAFC;
+    color: #F8FAFC;
 
-        }
+}
 
-        </style>
+</style>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
@@ -425,17 +425,17 @@ def stat_card(label, value, note):
 
         f"""
 
-        <div class="card">
+<div class="card">
 
-            <p class="card-label">{label}</p>
+    <p class="card-label">{label}</p>
 
-            <p class="card-value">{value}</p>
+    <p class="card-value">{value}</p>
 
-            <p class="card-note">{note}</p>
+    <p class="card-note">{note}</p>
 
-        </div>
+</div>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
@@ -477,43 +477,43 @@ def show_history():
 
         f"""
 
-        <div class="demo-banner">
+<div class="demo-banner">
 
-            <strong>Demo data.</strong>
+    <strong>Demo data.</strong>
 
-            <span> These rows are examples for the college project. They are not records from a real site, and no AI check was run.</span>
+    <span> These rows are examples for the college project. They are not records from a real site, and no AI check was run.</span>
 
-        </div>
+</div>
 
-        <table class="history-table">
+<table class="history-table">
 
-            <thead>
+    <thead>
 
-                <tr>
+        <tr>
 
-                    <th>When</th>
+            <th>When</th>
 
-                    <th>Location</th>
+            <th>Location</th>
 
-                    <th>Upload</th>
+            <th>Upload</th>
 
-                    <th>What happened</th>
+            <th>What happened</th>
 
-                    <th>Data</th>
+            <th>Data</th>
 
-                </tr>
+        </tr>
 
-            </thead>
+    </thead>
 
-            <tbody>
+    <tbody>
 
-                {rows_html}
+        {rows_html}
 
-            </tbody>
+    </tbody>
 
-        </table>
+</table>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
@@ -533,27 +533,27 @@ def show_model_notice(model_ready):
 
             """
 
-            <div class="notice">
+<div class="notice">
 
-                <strong>Image detection uses the trained YOLO weights.</strong>
+    <strong>Image detection uses the trained YOLO weights.</strong>
 
-                <p>
+    <p>
 
-                    Each box is a class the model predicted, with that class name and confidence.
+        Each box is a class the model predicted, with that class name and confidence.
 
-                    The weights include worn-equipment classes, explicit absence classes
+        The weights include worn-equipment classes, explicit absence classes
 
-                    (no_helmet, no_goggle, no_gloves, no_boots, no_vest), Person, and forklift.
+        (no_helmet, no_goggle, no_gloves, no_boots, no_vest), Person, and forklift.
 
-                    A missing helmet, vest, gloves, boots, or goggles box is not turned into a violation.
+        A missing helmet, vest, gloves, boots, or goggles box is not turned into a violation.
 
-                    Video detection analyzes one frame per second.
+        Video detection analyzes one frame per second.
 
-                </p>
+    </p>
 
-            </div>
+</div>
 
-            """,
+""",
 
             unsafe_allow_html=True,
 
@@ -567,23 +567,23 @@ def show_model_notice(model_ready):
 
         """
 
-        <div class="notice">
+<div class="notice">
 
-            <strong>The trained model file was not found.</strong>
+    <strong>The trained model file was not found.</strong>
 
-            <p>
+    <p>
 
-                Image detection looks for models/best (1).pt.
+        Image detection looks for models/best (1).pt.
 
-                Until that file is in place, photos can be previewed but not analyzed.
+        Until that file is in place, photos can be previewed but not analyzed.
 
-                Video detection analyzes one frame per second.
+        Video detection analyzes one frame per second.
 
-            </p>
+    </p>
 
-        </div>
+</div>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
@@ -689,27 +689,27 @@ def main():
 
         """
 
-        <div class="hero">
+<div class="hero">
 
-            <p class="eyebrow">Construction safety monitoring</p>
+    <p class="eyebrow">Construction safety monitoring</p>
 
-            <h1>BuildGuard AI</h1>
+    <h1>BuildGuard AI</h1>
 
-            <p class="lead">
+    <p class="lead">
 
-                A college project for construction-site safety monitoring.
+        A college project for construction-site safety monitoring.
 
-                Upload one or more site photos and click Detect all photos to run the trained YOLO model.
+        Upload one or more site photos and click Detect all photos to run the trained YOLO model.
 
-                The page shows the predicted boxes, class names, and confidence scores.
+        The page shows the predicted boxes, class names, and confidence scores.
 
-                Video detection analyzes one frame per second.
+        Video detection analyzes one frame per second.
 
-            </p>
+    </p>
 
-        </div>
+</div>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
@@ -1060,13 +1060,13 @@ def main():
 
         """
 
-        <p class="footer-note">
+<p class="footer-note">
 
-            BuildGuard AI · image detection uses models/best (1).pt · video detection samples one frame per second · history rows are demo data.
+    BuildGuard AI · image detection uses models/best (1).pt · video detection samples one frame per second · history rows are demo data.
 
-        </p>
+</p>
 
-        """,
+""",
 
         unsafe_allow_html=True,
 
