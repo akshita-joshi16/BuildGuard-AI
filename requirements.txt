@@ -1,0 +1,8 @@
+# Website.
+streamlit
+
+# Image detection with the trained YOLO weights.
+opencv-python
+ultralytics
+numpy
+Pillow
