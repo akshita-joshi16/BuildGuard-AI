@@ -1,5 +1,4 @@
-
-"""SQLite storage and analytics for BuildGuard AI."""
+"""SQLite storage and analytics for BuildGuard AI (multi-user)."""
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,12 +17,21 @@ def _connect():
     return connection
 
 
+def _require_user(user_id):
+    """Every storage call must belong to a real, non-empty user."""
+    user_id = str(user_id or "").strip().lower()
+    if not user_id:
+        raise PermissionError("A signed-in user is required.")
+    return user_id
+
+
 def init_db():
-    """Create the database and required tables if they do not exist."""
+    """Create tables if missing, and upgrade an older single-user database."""
     with _connect() as connection:
         connection.execute("""
             CREATE TABLE IF NOT EXISTS detection_runs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 source_type TEXT NOT NULL
                     CHECK(source_type IN ('image', 'video')),
@@ -36,6 +44,18 @@ def init_db():
                 error TEXT
             )
         """)
+
+        # Upgrade older databases that were created before user accounts.
+        # Old rows get user_id = '' and are never shown to any real user.
+        columns = [
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(detection_runs)")
+        ]
+        if "user_id" not in columns:
+            connection.execute(
+                "ALTER TABLE detection_runs "
+                "ADD COLUMN user_id TEXT NOT NULL DEFAULT ''"
+            )
 
         connection.execute("""
             CREATE TABLE IF NOT EXISTS predictions (
@@ -60,6 +80,11 @@ def init_db():
         """)
 
         connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_runs_user_id
+            ON detection_runs(user_id)
+        """)
+
+        connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_predictions_run_id
             ON predictions(run_id)
         """)
@@ -78,7 +103,7 @@ def _normalize_days(days):
 
 
 def _date_filter(days, column="r.created_at"):
-    """Return a safe SQL date filter and its parameter."""
+    """Return a safe SQL date filter and its parameters."""
     safe_days = _normalize_days(days)
 
     if safe_days is None:
@@ -90,6 +115,7 @@ def _date_filter(days, column="r.created_at"):
 
 
 def save_detection_run(
+    user_id,
     source_type,
     file_name,
     file_size,
@@ -99,11 +125,9 @@ def save_detection_run(
     frames_analyzed=None,
     error=None,
 ):
-    """Save an analyzed file and its individual model predictions.
+    """Save an analyzed file and its predictions for one user."""
+    user_id = _require_user(user_id)
 
-    Video predictions are stored separately with sampled-frame timestamps.
-    Counts represent predictions across sampled frames, not unique people.
-    """
     if source_type not in {"image", "video"}:
         raise ValueError("source_type must be 'image' or 'video'")
 
@@ -116,11 +140,12 @@ def save_detection_run(
         cursor = connection.execute(
             """
             INSERT INTO detection_runs
-            (created_at, source_type, file_name, file_size, status,
+            (user_id, created_at, source_type, file_name, file_size, status,
              duration_seconds, frames_analyzed, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                user_id,
                 created_at,
                 source_type,
                 str(file_name),
@@ -162,12 +187,14 @@ def save_detection_run(
     return run_id
 
 
-def get_dashboard_stats():
-    """Return overall dashboard totals."""
+def get_dashboard_stats(user_id):
+    """Return overall dashboard totals for one user."""
+    user_id = _require_user(user_id)
     init_db()
 
     with _connect() as connection:
-        run_stats = connection.execute("""
+        run_stats = connection.execute(
+            """
             SELECT
                 COUNT(*) AS total_runs,
                 SUM(CASE WHEN source_type = 'image'
@@ -177,10 +204,19 @@ def get_dashboard_stats():
                 SUM(CASE WHEN status = 'failed'
                     THEN 1 ELSE 0 END) AS failed_runs
             FROM detection_runs
-        """).fetchone()
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        ).fetchone()
 
         prediction_count = connection.execute(
-            "SELECT COUNT(*) FROM predictions"
+            """
+            SELECT COUNT(p.id)
+            FROM predictions AS p
+            JOIN detection_runs AS r ON r.id = p.run_id
+            WHERE r.user_id = ?
+            """,
+            (user_id,),
         ).fetchone()[0]
 
     return {
@@ -192,8 +228,9 @@ def get_dashboard_stats():
     }
 
 
-def get_detection_history(limit=50):
-    """Return recent analyzed files with prediction counts."""
+def get_detection_history(user_id, limit=50):
+    """Return one user's recent analyzed files with prediction counts."""
+    user_id = _require_user(user_id)
     init_db()
     safe_limit = max(1, min(int(limit), 500))
 
@@ -212,24 +249,26 @@ def get_detection_history(limit=50):
                 COUNT(p.id) AS prediction_count
             FROM detection_runs AS r
             LEFT JOIN predictions AS p ON p.run_id = r.id
+            WHERE r.user_id = ?
             GROUP BY r.id
             ORDER BY r.id DESC
             LIMIT ?
             """,
-            (safe_limit,),
+            (user_id, safe_limit),
         ).fetchall()
 
     return [dict(row) for row in rows]
 
 
-def get_run_details(run_id):
-    """Return one detection run and all its predictions."""
+def get_run_details(user_id, run_id):
+    """Return one run and its predictions, only if it belongs to the user."""
+    user_id = _require_user(user_id)
     init_db()
 
     with _connect() as connection:
         run = connection.execute(
-            "SELECT * FROM detection_runs WHERE id = ?",
-            (int(run_id),),
+            "SELECT * FROM detection_runs WHERE id = ? AND user_id = ?",
+            (int(run_id), user_id),
         ).fetchone()
 
         if run is None:
@@ -244,21 +283,24 @@ def get_run_details(run_id):
             (int(run_id),),
         ).fetchall()
 
+    run_dict = dict(run)
+    run_dict.pop("user_id", None)  # never expose the owner field to the UI
+
     return {
-        "run": dict(run),
+        "run": run_dict,
         "predictions": [dict(row) for row in predictions],
     }
 
 
 # ==========================================================
-# ANALYTICS FUNCTIONS
+# ANALYTICS FUNCTIONS (all scoped to one user)
 # ==========================================================
 
-def get_daily_detection_trends(days=30):
-    """Return daily image/video runs and prediction counts."""
+def get_daily_detection_trends(user_id, days=30):
+    """Return a user's daily image/video runs and prediction counts."""
+    user_id = _require_user(user_id)
     init_db()
-    safe_days = _normalize_days(days)
-    date_filter, params = _date_filter(safe_days)
+    date_filter, date_params = _date_filter(days)
 
     with _connect() as connection:
         rows = connection.execute(
@@ -276,19 +318,22 @@ def get_daily_detection_trends(days=30):
             FROM detection_runs AS r
             LEFT JOIN predictions AS p ON p.run_id = r.id
             WHERE r.status = 'success'
+              AND r.user_id = ?
             {date_filter}
             GROUP BY date(r.created_at)
             ORDER BY detection_date ASC
             """,
-            params,
+            (user_id,) + date_params,
         ).fetchall()
 
     return [dict(row) for row in rows]
 
-def get_class_distribution(days=30):
-    """Return prediction counts grouped by detected class."""
+
+def get_class_distribution(user_id, days=30):
+    """Return a user's prediction counts grouped by detected class."""
+    user_id = _require_user(user_id)
     init_db()
-    date_filter, params = _date_filter(days)
+    date_filter, date_params = _date_filter(days)
 
     with _connect() as connection:
         rows = connection.execute(
@@ -300,20 +345,22 @@ def get_class_distribution(days=30):
             FROM predictions AS p
             JOIN detection_runs AS r ON r.id = p.run_id
             WHERE r.status = 'success'
+              AND r.user_id = ?
             {date_filter}
             GROUP BY p.class_name
             ORDER BY prediction_count DESC
             """,
-            params,
+            (user_id,) + date_params,
         ).fetchall()
 
     return [dict(row) for row in rows]
 
 
-def get_source_type_stats(days=30):
-    """Compare successful image and video analysis runs."""
+def get_source_type_stats(user_id, days=30):
+    """Compare a user's successful image and video analysis runs."""
+    user_id = _require_user(user_id)
     init_db()
-    date_filter, params = _date_filter(days)
+    date_filter, date_params = _date_filter(days)
 
     with _connect() as connection:
         rows = connection.execute(
@@ -325,20 +372,22 @@ def get_source_type_stats(days=30):
             FROM detection_runs AS r
             LEFT JOIN predictions AS p ON p.run_id = r.id
             WHERE r.status = 'success'
+              AND r.user_id = ?
             {date_filter}
             GROUP BY r.source_type
             ORDER BY r.source_type
             """,
-            params,
+            (user_id,) + date_params,
         ).fetchall()
 
     return [dict(row) for row in rows]
 
 
-def get_confidence_stats(days=30):
-    """Return overall model prediction confidence statistics."""
+def get_confidence_stats(user_id, days=30):
+    """Return a user's overall model prediction confidence statistics."""
+    user_id = _require_user(user_id)
     init_db()
-    date_filter, params = _date_filter(days)
+    date_filter, date_params = _date_filter(days)
 
     with _connect() as connection:
         row = connection.execute(
@@ -351,9 +400,10 @@ def get_confidence_stats(days=30):
             FROM predictions AS p
             JOIN detection_runs AS r ON r.id = p.run_id
             WHERE r.status = 'success'
+              AND r.user_id = ?
             {date_filter}
             """,
-            params,
+            (user_id,) + date_params,
         ).fetchone()
 
     return {
@@ -364,11 +414,11 @@ def get_confidence_stats(days=30):
     }
 
 
-def get_analytics_summary(days=30):
-    """Return a combined summary for the analytics dashboard."""
+def get_analytics_summary(user_id, days=30):
+    """Return a user's combined summary for the analytics dashboard."""
+    user_id = _require_user(user_id)
     init_db()
-    safe_days = _normalize_days(days)
-    date_filter, params = _date_filter(safe_days)
+    date_filter, date_params = _date_filter(days)
 
     with _connect() as connection:
         row = connection.execute(
@@ -380,13 +430,11 @@ def get_analytics_summary(days=30):
                 SUM(CASE WHEN status = 'failed'
                     THEN 1 ELSE 0 END) AS failed_runs
             FROM detection_runs AS r
-            WHERE 1 = 1
+            WHERE r.user_id = ?
             {date_filter}
             """,
-            params,
+            (user_id,) + date_params,
         ).fetchone()
-
-        prediction_filter, prediction_params = _date_filter(safe_days)
 
         prediction_count = connection.execute(
             f"""
@@ -394,9 +442,10 @@ def get_analytics_summary(days=30):
             FROM predictions AS p
             JOIN detection_runs AS r ON r.id = p.run_id
             WHERE r.status = 'success'
-            {prediction_filter}
+              AND r.user_id = ?
+            {date_filter}
             """,
-            prediction_params,
+            (user_id,) + date_params,
         ).fetchone()[0]
 
     return {
