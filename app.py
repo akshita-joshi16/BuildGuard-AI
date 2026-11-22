@@ -1,9 +1,9 @@
-
-"""BuildGuard AI — Industrial Safety Command Center."""
+"""BuildGuard AI — Industrial Safety Command Center (multi-user)."""
 
 from datetime import datetime
 from io import BytesIO
 import hashlib
+import logging
 
 import pandas as pd
 import streamlit as st
@@ -13,6 +13,9 @@ import detection
 import video_detection
 import storage
 from report_generator import generate_pdf_report
+
+
+logger = logging.getLogger("buildguard")
 
 
 # ---------------------------------------------------------
@@ -35,6 +38,17 @@ def apply_design():
     st.html(
         """
         <style>
+        /* Hide Streamlit menu, toolbar, deploy button and footer */
+        #MainMenu,
+        footer,
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        .stAppDeployButton {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
         .stApp {
             background: #F5F1E7;
             color: #18372E;
@@ -232,21 +246,9 @@ def show_detection_table(detections):
 
     st.dataframe(
         pd.DataFrame(rows),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
-
-
-def save_run_safely(**kwargs):
-    """Save a detection run without hiding a successful model result."""
-    try:
-        return storage.save_detection_run(**kwargs)
-    except Exception as exc:
-        st.warning(
-            "Detection finished, but this run could not be saved to the "
-            f"history database: {exc}"
-        )
-        return None
 
 
 def get_potential_ppe_flags(class_distribution):
@@ -263,18 +265,66 @@ def get_potential_ppe_flags(class_distribution):
 
 
 # ---------------------------------------------------------
-# DATABASE INITIALIZATION
+# LOGIN GATE — nothing below runs until the user signs in
 # ---------------------------------------------------------
 
 apply_design()
 
+def auth_configured():
+    try:
+        return "auth" in st.secrets
+    except Exception:
+        return False
+
+
+if not auth_configured():
+    show_hero(
+        "BuildGuard AI",
+        "Sign-in is temporarily unavailable. Please try again later.",
+        "NOTICE",
+    )
+    st.stop()
+
+if not getattr(st.user, "is_logged_in", False):
+    show_hero(
+        "Industrial Safety Command Center",
+        "Sign in to access your personal safety dashboard. Your uploads, "
+        "history and reports are private to your account.",
+        "WELCOME",
+    )
+    st.button("Sign in with Google", type="primary", on_click=st.login)
+    st.stop()
+
+USER_ID = str(st.user.email or "").strip().lower()
+
+if not USER_ID:
+    st.error("Your account did not provide an email address. Please sign in again.")
+    st.button("Log out", on_click=st.logout)
+    st.stop()
+
+
+def save_run_safely(**kwargs):
+    """Save a detection run for the signed-in user without hiding a result."""
+    try:
+        return storage.save_detection_run(user_id=USER_ID, **kwargs)
+    except Exception:
+        logger.exception("Could not save detection run")
+        st.warning(
+            "Detection finished, but this run could not be saved to your history."
+        )
+        return None
+
+
+# ---------------------------------------------------------
+# DATABASE INITIALIZATION
+# ---------------------------------------------------------
+
 try:
     storage.init_db()
     database_ready = True
-    database_error = None
-except Exception as exc:
+except Exception:
+    logger.exception("Database initialization failed")
     database_ready = False
-    database_error = str(exc)
 
 
 # ---------------------------------------------------------
@@ -288,7 +338,7 @@ PAGES = [
     "Analytics",
     "Safety Reports",
     "Detection History",
-    "About & Model",
+    "About",
 ]
 
 model_ready = detection.model_file_exists()
@@ -306,26 +356,12 @@ with st.sidebar:
 
     st.divider()
 
-    st.markdown("**SYSTEM STATUS**")
-
-    if model_ready:
-        st.success("YOLO model available")
-    else:
-        st.error("YOLO model not found")
-
-    if database_ready:
-        st.success("SQLite database ready")
-    else:
-        st.error("Database unavailable")
-
-    st.caption("Image and video analysis run only when requested.")
-
-    st.divider()
-    st.caption("BuildGuard AI · Academic project")
+    st.caption(f"Signed in as {USER_ID}")
+    st.button("Log out", on_click=st.logout, width="stretch")
 
 
 # ---------------------------------------------------------
-# LOAD DASHBOARD DATA
+# LOAD DASHBOARD DATA (this user only)
 # ---------------------------------------------------------
 
 dashboard_stats = {
@@ -341,11 +377,12 @@ recent_history = []
 
 if database_ready:
     try:
-        dashboard_stats = storage.get_dashboard_stats()
-        all_class_distribution = storage.get_class_distribution(days=None)
-        recent_history = storage.get_detection_history(limit=10)
-    except Exception as exc:
-        st.error(f"Could not load dashboard information: {exc}")
+        dashboard_stats = storage.get_dashboard_stats(USER_ID)
+        all_class_distribution = storage.get_class_distribution(USER_ID, days=None)
+        recent_history = storage.get_detection_history(USER_ID, limit=10)
+    except Exception:
+        logger.exception("Could not load dashboard information")
+        st.error("Could not load your dashboard right now. Please try again.")
 
 
 successful_runs = max(
@@ -364,17 +401,17 @@ potential_flags = get_potential_ppe_flags(all_class_distribution)
 if selected_page == "Overview":
 
     show_hero(
-        "Industrial Safety Command Center",
-        "A centralized view of construction-site PPE predictions, "
+        "Your Safety Dashboard",
+        "A centralized view of your construction-site PPE predictions, "
         "image and video analysis, detection activity, and safety reports.",
-        "LIVE PROJECT DASHBOARD",
+        "PERSONAL DASHBOARD",
     )
 
     if not database_ready:
-        st.error(f"The database could not be initialized: {database_error}")
+        st.error("Your data is temporarily unavailable. Please try again later.")
 
     st.markdown("### Operational overview")
-    st.caption("Figures below come from saved detection runs in the SQLite database.")
+    st.caption("Figures below come from your saved detection runs.")
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -419,7 +456,7 @@ if selected_page == "Overview":
 
         st.dataframe(
             pd.DataFrame(history_rows),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     else:
@@ -439,15 +476,15 @@ elif selected_page == "Image Detection":
 
     show_hero(
         "Image Detection",
-        "Upload construction-site photographs and run the trained YOLO model "
-        "to view predicted PPE classes, confidence scores, and annotated images.",
+        "Upload construction-site photographs to view predicted PPE classes, "
+        "confidence scores, and annotated images.",
         "PHOTO ANALYSIS",
     )
 
     if not model_ready:
         st.error(
-            "The trained model file was not found. Check that "
-            "models/best (1).pt is included in the project."
+            "The detection service is temporarily unavailable. "
+            "Please try again later."
         )
 
     uploaded_images = st.file_uploader(
@@ -467,14 +504,13 @@ elif selected_page == "Image Detection":
                 st.image(
                     uploaded_image.getvalue(),
                     caption=uploaded_image.name,
-                    use_container_width=True,
+                    width="stretch",
                 )
 
     run_images = st.button(
         "Run detection on selected photos",
         type="primary",
         disabled=not uploaded_images or not model_ready,
-        use_container_width=False,
     )
 
     if run_images:
@@ -490,10 +526,11 @@ elif selected_page == "Image Detection":
                 outcome = detection.detect_image(
                     BytesIO(uploaded_image.getvalue())
                 )
-            except Exception as exc:
+            except Exception:
+                logger.exception("Image detection failed")
                 outcome = {
                     "ok": False,
-                    "error": str(exc),
+                    "error": "Image detection failed. Please try again.",
                     "detections": [],
                 }
 
@@ -506,7 +543,7 @@ elif selected_page == "Image Detection":
                 file_size=uploaded_image.size,
                 detections=detections if success else [],
                 status="success" if success else "failed",
-                error=None if success else outcome.get("error", "Detection failed"),
+                error=None if success else "Detection failed",
             )
 
             results.append(
@@ -550,7 +587,7 @@ elif selected_page == "Image Detection":
                 st.markdown(f"#### {uploaded_image.name}")
 
                 if not outcome.get("ok"):
-                    st.error(outcome.get("error") or "Image detection failed.")
+                    st.error("Image detection failed. Please try again.")
                     continue
 
                 if matching_result.get("run_id") is not None:
@@ -561,8 +598,8 @@ elif selected_page == "Image Detection":
                 if annotated is not None:
                     st.image(
                         annotated,
-                        caption="YOLO model predictions",
-                        use_container_width=True,
+                        caption="Model predictions",
+                        width="stretch",
                     )
 
                 detections = outcome.get("detections", []) or []
@@ -614,8 +651,8 @@ elif selected_page == "Video Detection":
 
     if not model_ready:
         st.error(
-            "The trained model file was not found. Video analysis is unavailable "
-            "until models/best (1).pt is present."
+            "The detection service is temporarily unavailable. "
+            "Please try again later."
         )
 
     uploaded_video = st.file_uploader(
@@ -641,10 +678,11 @@ elif selected_page == "Video Detection":
                     frame_interval_seconds=config.VIDEO_FRAME_INTERVAL_SECONDS,
                     max_frames=config.VIDEO_MAX_FRAMES,
                 )
-            except Exception as exc:
+            except Exception:
+                logger.exception("Video analysis failed")
                 outcome = {
                     "ok": False,
-                    "error": str(exc),
+                    "error": "Video analysis failed. Please try again.",
                     "frames": [],
                     "summary": {},
                 }
@@ -670,7 +708,7 @@ elif selected_page == "Video Detection":
             status="success" if success else "failed",
             duration_seconds=outcome.get("duration_seconds"),
             frames_analyzed=outcome.get("total_frames_analyzed"),
-            error=None if success else outcome.get("error", "Video analysis failed"),
+            error=None if success else "Video analysis failed",
         )
 
         st.session_state["buildguard_video_result"] = {
@@ -694,7 +732,7 @@ elif selected_page == "Video Detection":
         st.markdown("### Video analysis results")
 
         if not outcome.get("ok"):
-            st.error(outcome.get("error") or "Video analysis failed.")
+            st.error("Video analysis failed. Please try again.")
         else:
             if saved_video.get("run_id") is not None:
                 st.caption(f"Saved history run ID: {saved_video['run_id']}")
@@ -732,7 +770,7 @@ elif selected_page == "Video Detection":
                 )
                 st.dataframe(
                     summary_df,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
             else:
@@ -757,7 +795,7 @@ elif selected_page == "Video Detection":
                     if frame.get("annotated_image") is not None:
                         st.image(
                             frame["annotated_image"],
-                            use_container_width=True,
+                            width="stretch",
                         )
 
                     show_detection_table(frame.get("detections", []) or [])
@@ -781,13 +819,13 @@ elif selected_page == "Analytics":
 
     show_hero(
         "Analytics & Insights",
-        "Explore saved detection activity, predicted PPE classes, model "
+        "Explore your detection activity, predicted PPE classes, model "
         "confidence, and the distribution of image and video analysis.",
-        "PROJECT ANALYTICS",
+        "ANALYTICS",
     )
 
     if not database_ready:
-        st.error("Analytics are unavailable because the database could not be loaded.")
+        st.error("Analytics are temporarily unavailable. Please try again later.")
     else:
         selected_days = st.selectbox(
             "Analysis period",
@@ -797,11 +835,11 @@ elif selected_page == "Analytics":
         )
 
         try:
-            summary = storage.get_analytics_summary(days=selected_days)
-            trends = storage.get_daily_detection_trends(days=selected_days)
-            class_distribution = storage.get_class_distribution(days=selected_days)
-            source_stats = storage.get_source_type_stats(days=selected_days)
-            confidence_stats = storage.get_confidence_stats(days=selected_days)
+            summary = storage.get_analytics_summary(USER_ID, days=selected_days)
+            trends = storage.get_daily_detection_trends(USER_ID, days=selected_days)
+            class_distribution = storage.get_class_distribution(USER_ID, days=selected_days)
+            source_stats = storage.get_source_type_stats(USER_ID, days=selected_days)
+            confidence_stats = storage.get_confidence_stats(USER_ID, days=selected_days)
 
             st.markdown("### Summary")
 
@@ -861,7 +899,7 @@ elif selected_page == "Analytics":
                     )
                     st.dataframe(
                         display_df,
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                     )
             else:
@@ -883,7 +921,7 @@ elif selected_page == "Analytics":
 
                 st.dataframe(
                     source_df,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
             else:
@@ -923,8 +961,9 @@ elif selected_page == "Analytics":
                 "a measure of worker safety or model accuracy."
             )
 
-        except Exception as exc:
-            st.error(f"Could not generate analytics: {exc}")
+        except Exception:
+            logger.exception("Could not generate analytics")
+            st.error("Could not generate analytics right now. Please try again.")
 
 
 # =========================================================
@@ -935,19 +974,20 @@ elif selected_page == "Safety Reports":
 
     show_hero(
         "Safety Reports",
-        "Generate downloadable PDF summaries for individual image and video "
-        "detection runs saved in the project database.",
+        "Generate downloadable PDF summaries for your image and video "
+        "detection runs.",
         "REPORT CENTER",
     )
 
     if not database_ready:
-        st.error("Reports are unavailable because the database could not be loaded.")
+        st.error("Reports are temporarily unavailable. Please try again later.")
     else:
         try:
-            report_history = storage.get_detection_history(limit=500)
-        except Exception as exc:
+            report_history = storage.get_detection_history(USER_ID, limit=500)
+        except Exception:
+            logger.exception("Could not load report history")
             report_history = []
-            st.error(f"Could not load report history: {exc}")
+            st.error("Could not load your report history. Please try again.")
 
         if not report_history:
             st.info(
@@ -974,10 +1014,11 @@ elif selected_page == "Safety Reports":
             selected_run_id = report_options[selected_report_label]
 
             try:
-                details = storage.get_run_details(selected_run_id)
-            except Exception as exc:
+                details = storage.get_run_details(USER_ID, selected_run_id)
+            except Exception:
+                logger.exception("Could not load detection run")
                 details = None
-                st.error(f"Could not load this detection run: {exc}")
+                st.error("Could not load this detection run. Please try again.")
 
             if details:
                 run = details["run"]
@@ -1038,8 +1079,9 @@ elif selected_page == "Safety Reports":
                         type="primary",
                     )
 
-                except Exception as exc:
-                    st.error(f"Could not generate the PDF report: {exc}")
+                except Exception:
+                    logger.exception("Could not generate PDF report")
+                    st.error("Could not generate the PDF report. Please try again.")
 
     show_notice()
 
@@ -1052,13 +1094,13 @@ elif selected_page == "Detection History":
 
     show_hero(
         "Detection History",
-        "Search and review saved image and video analysis runs, their "
+        "Search and review your saved image and video analysis runs, their "
         "processing status, and their individual model predictions.",
         "ACTIVITY LOG",
     )
 
     if not database_ready:
-        st.error("History is unavailable because the database could not be loaded.")
+        st.error("History is temporarily unavailable. Please try again later.")
     else:
         search_col, type_col, status_col = st.columns([2, 1, 1])
 
@@ -1081,10 +1123,11 @@ elif selected_page == "Detection History":
             )
 
         try:
-            history = storage.get_detection_history(limit=500)
-        except Exception as exc:
+            history = storage.get_detection_history(USER_ID, limit=500)
+        except Exception:
+            logger.exception("Could not load detection history")
             history = []
-            st.error(f"Could not load detection history: {exc}")
+            st.error("Could not load your detection history. Please try again.")
 
         filtered_history = []
 
@@ -1116,13 +1159,13 @@ elif selected_page == "Detection History":
                         "Source": str(item.get("source_type", "")).title(),
                         "Status": str(item.get("status", "")).title(),
                         "Predictions": item.get("prediction_count", 0),
-                        "Frames": item.get("frames_analyzed") or "—",
+                        "Frames": str(item.get("frames_analyzed") or "—"),
                     }
                 )
 
             st.dataframe(
                 pd.DataFrame(history_rows),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -1143,11 +1186,12 @@ elif selected_page == "Detection History":
 
             try:
                 details = storage.get_run_details(
-                    run_options[selected_run_label]
+                    USER_ID, run_options[selected_run_label]
                 )
-            except Exception as exc:
+            except Exception:
+                logger.exception("Could not load run details")
                 details = None
-                st.error(f"Could not load run details: {exc}")
+                st.error("Could not load run details. Please try again.")
 
             if details:
                 run = details["run"]
@@ -1156,8 +1200,8 @@ elif selected_page == "Detection History":
                 st.write(f"**Date:** {format_date(run.get('created_at'))}")
                 st.write(f"**Status:** {str(run.get('status')).title()}")
 
-                if run.get("error"):
-                    st.error(run["error"])
+                if run.get("status") == "failed":
+                    st.error("This analysis did not complete successfully.")
 
                 if run.get("duration_seconds") is not None:
                     st.write(
@@ -1177,95 +1221,30 @@ elif selected_page == "Detection History":
 
 
 # =========================================================
-# 7. ABOUT & MODEL
+# 7. ABOUT
 # =========================================================
 
-elif selected_page == "About & Model":
+elif selected_page == "About":
 
     show_hero(
         "About BuildGuard AI",
-        "An academic project exploring how computer vision can support "
-        "construction-site PPE monitoring through image and video analysis.",
-        "PROJECT & MODEL INFORMATION",
+        "Computer-vision support for construction-site PPE monitoring "
+        "through image and video analysis.",
+        "ABOUT",
     )
 
-    st.markdown("### Project overview")
+    st.markdown("### What it does")
 
     st.markdown(
         """
-        BuildGuard AI uses a trained YOLO object-detection model to identify
+        BuildGuard AI uses an object-detection model to identify
         construction-safety-related classes in uploaded photographs and
-        sampled video frames.
+        sampled video frames. You can review predictions, track your
+        activity over time, and download PDF reports.
 
-        The application combines model inference, a Streamlit interface,
-        SQLite-based detection history, analytics, and downloadable PDF reports.
+        Your uploads, history and reports are private to your account.
         """
     )
-
-    st.markdown("### Technology stack")
-
-    tech1, tech2, tech3 = st.columns(3)
-
-    with tech1:
-        st.markdown("**AI & computer vision**")
-        st.write("- YOLO / Ultralytics")
-        st.write("- OpenCV")
-        st.write("- Python")
-
-    with tech2:
-        st.markdown("**Application**")
-        st.write("- Streamlit")
-        st.write("- SQLite")
-        st.write("- Pandas")
-
-    with tech3:
-        st.markdown("**Reporting & deployment**")
-        st.write("- ReportLab PDF")
-        st.write("- GitHub")
-        st.write("- Streamlit Community Cloud")
-
-    st.markdown("### Model information")
-
-    st.write("**Model file:** `models/best (1).pt`")
-    st.write(
-        "**Image confidence threshold:** "
-        f"{config.CONFIDENCE_THRESHOLD:.2f}"
-    )
-    st.write(
-        "**Video frame interval:** "
-        f"{config.VIDEO_FRAME_INTERVAL_SECONDS} second(s)"
-    )
-    st.write(
-        "**Maximum video frames:** "
-        f"{config.VIDEO_MAX_FRAMES}"
-    )
-    st.write(
-        "**Model availability:** "
-        + ("Available" if model_ready else "File not found")
-    )
-
-    st.markdown("### Reported validation results")
-
-    st.caption(
-        "The following figures are the validation results reported for this "
-        "project's trained model."
-    )
-
-    metric1, metric2, metric3, metric4 = st.columns(4)
-
-    with metric1:
-        st.metric("Precision", "0.891")
-
-    with metric2:
-        st.metric("Recall", "0.644")
-
-    with metric3:
-        st.metric("mAP50", "0.720")
-
-    with metric4:
-        st.metric("mAP50–95", "0.511")
-
-    st.write("Validation set: 200 images · 2,961 labeled instances.")
 
     st.markdown("### Important limitations")
 
@@ -1277,17 +1256,9 @@ elif selected_page == "About & Model":
         - Video analysis samples frames; it does not continuously inspect every moment.
         - Prediction counts across video frames are not unique-person counts.
         - Model confidence is not the same as model accuracy.
-        - This academic project is a decision-support demonstration, not a
-          certified safety-inspection or compliance system.
+        - BuildGuard AI is a decision-support tool, not a certified
+          safety-inspection or compliance system.
         """
-    )
-
-    st.markdown("### Project purpose")
-
-    st.write(
-        "The goal of BuildGuard AI is to demonstrate how computer vision "
-        "can help organize and review potential PPE-related observations "
-        "from construction-site media."
     )
 
 
@@ -1297,7 +1268,4 @@ elif selected_page == "About & Model":
 
 st.divider()
 
-st.caption(
-    "BuildGuard AI · Academic construction-safety monitoring project · "
-    "AI predictions require human review."
-)
+st.caption("BuildGuard AI · AI predictions require human review.")
