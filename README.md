@@ -1,49 +1,117 @@
-# BuildGuard AI
+# 🦺 BuildGuard AI
+### AI-Powered Construction Site Safety Monitoring
 
-Multimodal Construction Safety Intelligence Platform.
+BuildGuard AI is an AI-assisted construction safety monitoring application that uses computer vision to identify Personal Protective Equipment (PPE) and potential safety concerns in construction-site images and videos.
 
-A college AI/ML project that uses YOLO and OpenCV to detect construction-site safety issues from images and video, presents results in a Streamlit app, stores runs in SQLite, and can be deployed publicly on Render. Model training is done in Google Colab; the code lives on GitHub.
+It provides an interactive web dashboard where users can upload media, view AI-generated detection results, and review previous detection activity.
 
-## Stack
+## ✨ Key Features
 
-| Piece | Role |
-| --- | --- |
-| Python | Language for the whole project |
-| YOLO (`ultralytics`) | Object detection model |
-| OpenCV | Image and video handling |
-| Streamlit | Web interface |
-| SQLite | Local database |
-| Google Colab | Train the model |
-| GitHub | Version control |
-| Render | Public deployment |
+- **Image Detection:** Upload images and identify PPE-related objects.
+- **Video Detection:** Analyze video frames and display detection results.
+- **AI-Based Monitoring:** Uses a trained YOLO object detection model.
+- **Visual Results:** Displays annotated images with detection boxes and confidence scores.
+- **Activity History:** Stores detection records using SQLite.
+- **Dashboard Statistics:** Shows analysis activity and detection summaries.
+- **Web Interface:** Simple and interactive Streamlit dashboard.
 
-## Layout
+## 🛠️ Technologies Used
 
-| Path | What it will do |
-| --- | --- |
-| `app.py` | Streamlit entry point. Upload media, run detection, show results and reports. |
-| `train.py` | Train or fine-tune YOLO and save weights. |
-| `detection.py` | Run YOLO on a single image. |
-| `video_detection.py` | Run YOLO across video frames. |
-| `report_generator.py` | Build a safety report from detection results. |
-| `storage.py` | Save and load runs in SQLite. |
-| `config.py` | Settings such as folder paths, the model file name, and detection confidence. |
-| `requirements.txt` | Python packages to install. |
-| `.gitignore` | Tells Git to skip heavy files, the database, and private settings. |
-| `models/` | Trained YOLO weights (`.pt` files stay off GitHub). |
-| `dataset/data.yaml` | Tells YOLO where the images are and what each class is called. |
-| `dataset/images/train/` | Photos used to teach the model. |
-| `dataset/images/val/` | Photos used to check the model. |
-| `dataset/labels/train/` | Box labels for the training photos. |
-| `dataset/labels/val/` | Box labels for the check photos. |
-| `database/` | The SQLite database file will be saved here. |
-| `uploads/` | Photos and videos a user uploads on the website. |
-| `outputs/images/` | Photos after detection boxes are drawn. |
-| `outputs/videos/` | Videos after detection boxes are drawn. |
-| `outputs/reports/` | Saved safety reports. |
-| `assets/` | Logo and sample pictures for the website. |
-| `pages/` | Extra website pages, added later. |
-| `tests/` | Simple checks, added later. |
-| `src/` | Shared helpers once the app grows past the top-level modules. |
+| Technology | Purpose |
+|---|---|
+| Python | Application development |
+| YOLO (Ultralytics) | Object detection |
+| OpenCV | Image and video processing |
+| Streamlit | Web application |
+| SQLite | Detection history storage |
+| NumPy | Image data processing |
+| Pillow | Image handling |
+| Google Colab | Model training |
 
-This repository currently contains the folder structure only. Application code comes in later steps.
+## 📁 Project Structure
+
+```text
+BuildGuard-AI/
+│
+├── app.py
+├── detection.py
+├── video_detection.py
+├── storage.py
+├── report_generator.py
+├── config.py
+├── train.py
+├── requirements.txt
+├── packages.txt
+│
+├── models/
+│   └── best (1).pt
+│
+├── assets/
+├── pages/
+├── database/
+├── uploads/
+├── outputs/
+└── README.md
+```
+
+## 🚀 Run Locally
+
+### Step 1: Clone the repository
+
+```bash
+git clone https://github.com/akshita-joshi16/BuildGuard-AI.git
+```
+
+### Step 2: Open the project directory
+
+```bash
+cd BuildGuard-AI
+```
+
+### Step 3: Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### Step 4: Run the application
+
+```bash
+python -m streamlit run app.py
+```
+
+The application will open in your browser.
+
+## 🧠 AI Model
+
+BuildGuard AI uses a trained YOLO model to detect objects associated with construction-site safety.
+
+The model produces predictions with confidence scores and visual bounding boxes.
+
+The trained model weights are expected at:
+
+```text
+models/best (1).pt
+```
+
+## 💾 Database
+
+SQLite is used to store detection activity and related information. Users can view previously recorded image and video analysis through the application.
+
+## 🌐 Deployment
+
+The application is designed to run using Streamlit and can be deployed through a supported cloud hosting platform.
+
+## ⚠️ Disclaimer
+
+BuildGuard AI is an academic AI-assisted monitoring project. AI predictions may contain errors and should not replace professional safety inspections, certified PPE checks, or established construction-site safety procedures.
+
+## 👩‍💻 Project Information
+
+**Project Name:** BuildGuard AI  
+**Domain:** Artificial Intelligence and Computer Vision  
+**Application:** Construction Site Safety Monitoring
+
+---
+
+⭐ If you find this project interesting, consider giving the repository a star!
