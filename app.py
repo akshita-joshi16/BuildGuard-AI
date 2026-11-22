@@ -1,1067 +1,1303 @@
-"""BuildGuard AI website.
 
+"""BuildGuard AI — Industrial Safety Command Center."""
 
+from datetime import datetime
+from io import BytesIO
+import hashlib
 
-This file is the Streamlit website. Image upload runs the trained YOLO
-
-model in detection.py. Video detection samples one frame per second. The dashboard
-
-history and the SQLite database are still demo data.
-
-"""
-
-
-
+import pandas as pd
 import streamlit as st
 
-
-
+import config
 import detection
 import video_detection
+import storage
+from report_generator import generate_pdf_report
 
 
+# ---------------------------------------------------------
+# PAGE CONFIGURATION
+# ---------------------------------------------------------
+
+st.set_page_config(
+    page_title="BuildGuard AI | Safety Command Center",
+    page_icon="🦺",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 
-
-# Sample rows for the history table.
-
-# These are not real site events. The table always says "Demo".
-
-DEMO_HISTORY = [
-
-    {
-
-        "When": "20 Nov 2026, 09:15",
-
-        "Location": "Site A — Foundation",
-
-        "Upload": "Image",
-
-        "What happened": "File received. Not analyzed.",
-
-        "Data": "Demo",
-
-    },
-
-    {
-
-        "When": "20 Nov 2026, 11:40",
-
-        "Location": "Site B — Scaffold",
-
-        "Upload": "Video",
-
-        "What happened": "File received. Not analyzed.",
-
-        "Data": "Demo",
-
-    },
-
-    {
-
-        "When": "19 Nov 2026, 16:05",
-
-        "Location": "Site A — Roof",
-
-        "Upload": "Image",
-
-        "What happened": "File received. Not analyzed.",
-
-        "Data": "Demo",
-
-    },
-
-    {
-
-        "When": "19 Nov 2026, 08:30",
-
-        "Location": "Site C — Site gate",
-
-        "Upload": "Image",
-
-        "What happened": "File received. Not analyzed.",
-
-        "Data": "Demo",
-
-    },
-
-]
-
-
-
-
+# ---------------------------------------------------------
+# DESIGN
+# ---------------------------------------------------------
 
 def apply_design():
-
-    """Add the navy, white, and orange look on top of Streamlit."""
-
     st.html(
-
         """
-
-<style>
-
-.stApp {
-
-    background-color: #F3F6FB;
-
-    color: #0B1F3A;
-
-}
-
-.block-container {
-
-    padding-top: 1.4rem;
-
-    padding-bottom: 2.5rem;
-
-    max-width: 1180px;
-
-}
-
-h1, h2, h3, p, label {
-
-    color: #0B1F3A;
-
-}
-
-.hero {
-
-    background: linear-gradient(135deg, #0B1F3A 0%, #16345C 100%);
-
-    color: #FFFFFF;
-
-    border-radius: 18px;
-
-    padding: 32px 36px 28px 36px;
-
-    border-top: 7px solid #F97316;
-
-    margin-bottom: 8px;
-
-}
-
-.hero p,
-
-.hero h1,
-
-.eyebrow {
-
-    color: #FFFFFF;
-
-}
-
-.hero h1 {
-
-    font-size: 2.4rem;
-
-    line-height: 1.15;
-
-    margin: 8px 0 10px 0;
-
-    font-weight: 700;
-
-}
-
-.hero .lead {
-
-    font-size: 1.05rem;
-
-    line-height: 1.55;
-
-    max-width: 740px;
-
-    margin: 0;
-
-    color: #E7EEF8;
-
-}
-
-.eyebrow {
-
-    letter-spacing: 0.08em;
-
-    text-transform: uppercase;
-
-    font-size: 0.78rem;
-
-    font-weight: 700;
-
-    color: #FDBA74;
-
-    margin: 0;
-
-}
-
-.card {
-
-    background: #FFFFFF;
-
-    border: 1px solid #E3EAF3;
-
-    border-radius: 14px;
-
-    padding: 16px 18px 14px 18px;
-
-    box-shadow: 0 8px 22px rgba(11, 31, 58, 0.05);
-
-    min-height: 132px;
-
-}
-
-.card-label {
-
-    color: #5C6B80;
-
-    font-size: 0.86rem;
-
-    font-weight: 600;
-
-    margin: 0;
-
-}
-
-.card-value {
-
-    color: #0B1F3A;
-
-    font-size: 1.7rem;
-
-    font-weight: 700;
-
-    margin: 8px 0 6px 0;
-
-    line-height: 1.1;
-
-}
-
-.card-note {
-
-    color: #9A3412;
-
-    background: #FFF4EB;
-
-    display: inline-block;
-
-    border-radius: 999px;
-
-    padding: 2px 8px;
-
-    font-size: 0.75rem;
-
-    font-weight: 700;
-
-    margin: 0;
-
-}
-
-.notice {
-
-    background: #FFF7ED;
-
-    border: 1px solid #FDBA74;
-
-    border-left: 6px solid #F97316;
-
-    border-radius: 12px;
-
-    padding: 14px 16px;
-
-    margin: 8px 0 14px 0;
-
-}
-
-.notice strong {
-
-    color: #9A3412;
-
-    font-size: 1.05rem;
-
-}
-
-.notice p {
-
-    color: #7C2D12;
-
-    margin: 6px 0 0 0;
-
-    line-height: 1.5;
-
-}
-
-.demo-banner {
-
-    background: #0B1F3A;
-
-    color: #FFFFFF;
-
-    border-radius: 12px;
-
-    padding: 12px 16px;
-
-    margin-bottom: 12px;
-
-}
-
-.demo-banner strong,
-
-.demo-banner span {
-
-    color: #FFFFFF;
-
-}
-
-.history-table {
-
-    width: 100%;
-
-    border-collapse: collapse;
-
-    background: #FFFFFF;
-
-    border-radius: 12px;
-
-    overflow: hidden;
-
-}
-
-.history-table th {
-
-    text-align: left;
-
-    background: #0B1F3A;
-
-    color: #FFFFFF;
-
-    padding: 10px 12px;
-
-    font-size: 0.86rem;
-
-}
-
-.history-table td {
-
-    padding: 10px 12px;
-
-    border-bottom: 1px solid #E8EEF5;
-
-    color: #0B1F3A;
-
-    font-size: 0.92rem;
-
-}
-
-.history-table tr:last-child td {
-
-    border-bottom: none;
-
-}
-
-.tag {
-
-    background: #FFF4EB;
-
-    color: #C2410C;
-
-    border-radius: 999px;
-
-    padding: 2px 8px;
-
-    font-weight: 700;
-
-    font-size: 0.78rem;
-
-}
-
-.footer-note {
-
-    color: #5C6B80;
-
-    font-size: 0.88rem;
-
-    margin-top: 18px;
-
-}
-
-div[data-testid="stSidebar"] {
-
-    background-color: #0B1F3A;
-
-}
-
-div[data-testid="stSidebar"] p,
-
-div[data-testid="stSidebar"] span,
-
-div[data-testid="stSidebar"] h1,
-
-div[data-testid="stSidebar"] h2,
-
-div[data-testid="stSidebar"] h3,
-
-div[data-testid="stSidebar"] label {
-
-    color: #F8FAFC;
-
-}
-
-</style>
-
-""",
-
-    )
-
-
-
-
-
-def stat_card(label, value, note):
-
-    """Draw one white statistics card."""
-
-    st.html(
-
-        f"""
-
-<div class="card">
-
-    <p class="card-label">{label}</p>
-
-    <p class="card-value">{value}</p>
-
-    <p class="card-note">{note}</p>
-
-</div>
-
-""",
-
-    )
-
-
-
-
-
-def show_history():
-
-    """Draw the demo activity table. Every row is sample data."""
-
-    rows_html = ""
-
-    for row in DEMO_HISTORY:
-
-        rows_html += (
-
-            "<tr>"
-
-            f"<td>{row['When']}</td>"
-
-            f"<td>{row['Location']}</td>"
-
-            f"<td>{row['Upload']}</td>"
-
-            f"<td>{row['What happened']}</td>"
-
-            f"<td><span class='tag'>{row['Data']}</span></td>"
-
-            "</tr>"
-
-        )
-
-
-
-    st.html(
-
-        f"""
-
-<div class="demo-banner">
-
-    <strong>Demo data.</strong>
-
-    <span> These rows are examples for the college project. They are not records from a real site, and no AI check was run.</span>
-
-</div>
-
-<table class="history-table">
-
-    <thead>
-
-        <tr>
-
-            <th>When</th>
-
-            <th>Location</th>
-
-            <th>Upload</th>
-
-            <th>What happened</th>
-
-            <th>Data</th>
-
-        </tr>
-
-    </thead>
-
-    <tbody>
-
-        {rows_html}
-
-    </tbody>
-
-</table>
-
-""",
-
-    )
-
-
-
-
-
-def show_model_notice(model_ready):
-
-    """Explain what the image model can and cannot decide."""
-
-    if model_ready:
-
-        st.html(
-
-            """
-
-<div class="notice">
-
-    <strong>Image detection uses the trained YOLO weights.</strong>
-
-    <p>
-
-        Each box is a class the model predicted, with that class name and confidence.
-
-        The weights include worn-equipment classes, explicit absence classes
-
-        (no_helmet, no_goggle, no_gloves, no_boots, no_vest), Person, and forklift.
-
-        A missing helmet, vest, gloves, boots, or goggles box is not turned into a violation.
-
-        Video detection analyzes one frame per second.
-
-    </p>
-
-</div>
-
-""",
-
-        )
-
-        return
-
-
-
-    st.html(
-
+        <style>
+        .stApp {
+            background: #F5F1E7;
+            color: #18372E;
+        }
+
+        .block-container {
+            max-width: 1440px;
+            padding-top: 1.5rem;
+            padding-bottom: 3rem;
+        }
+
+        h1, h2, h3, p, label {
+            color: #18372E;
+        }
+
+        div[data-testid="stSidebar"] {
+            background: #142D27;
+        }
+
+        div[data-testid="stSidebar"] p,
+        div[data-testid="stSidebar"] span,
+        div[data-testid="stSidebar"] label,
+        div[data-testid="stSidebar"] h1,
+        div[data-testid="stSidebar"] h2,
+        div[data-testid="stSidebar"] h3 {
+            color: #F5F1E7;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #142D27, #315B49);
+            border-radius: 20px;
+            padding: 30px 34px;
+            border-left: 7px solid #B8E36B;
+            margin-bottom: 20px;
+        }
+
+        .hero h1 {
+            color: #FFFFFF;
+            font-size: 2.35rem;
+            margin: 5px 0 10px 0;
+        }
+
+        .hero p {
+            color: #E6EEE8;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 0;
+        }
+
+        .eyebrow {
+            color: #B8E36B !important;
+            font-size: 0.76rem !important;
+            font-weight: 800;
+            letter-spacing: 0.13em;
+            text-transform: uppercase;
+        }
+
+        .section-label {
+            color: #52705F;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .info-panel {
+            background: #FFFFFF;
+            border: 1px solid #E4E8DD;
+            border-radius: 14px;
+            padding: 18px 20px;
+            margin: 10px 0;
+        }
+
+        .info-panel strong {
+            color: #18372E;
+        }
+
+        .info-panel p {
+            color: #53685C;
+            margin: 5px 0 0 0;
+            line-height: 1.5;
+        }
+
+        .small-note {
+            color: #65776B;
+            font-size: 0.84rem;
+        }
+
+        div[data-testid="stMetric"] {
+            background: #FFFFFF;
+            border: 1px solid #E4E8DD;
+            border-radius: 14px;
+            padding: 16px 18px;
+        }
+
+        div[data-testid="stMetricLabel"] {
+            color: #53685C;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: #18372E;
+        }
+
+        .stButton > button[kind="primary"] {
+            background: #315B49;
+            border: 1px solid #315B49;
+            color: #FFFFFF;
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        .stButton > button[kind="primary"]:hover {
+            background: #24453A;
+            border-color: #24453A;
+        }
+
+        .stDownloadButton > button {
+            background: #B8E36B;
+            color: #18372E;
+            border: 1px solid #A6D253;
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        hr {
+            border-color: #DDE4D8;
+        }
+        </style>
         """
-
-<div class="notice">
-
-    <strong>The trained model file was not found.</strong>
-
-    <p>
-
-        Image detection looks for models/best (1).pt.
-
-        Until that file is in place, photos can be previewed but not analyzed.
-
-        Video detection analyzes one frame per second.
-
-    </p>
-
-</div>
-
-""",
-
     )
 
 
+def show_hero(title, description, eyebrow="BUILDGUARD AI"):
+    st.html(
+        f"""
+        <div class="hero">
+            <p class="eyebrow">{eyebrow}</p>
+            <h1>{title}</h1>
+            <p>{description}</p>
+        </div>
+        """
+    )
 
+
+def show_notice():
+    st.info(
+        "BuildGuard AI displays AI-generated predictions from uploaded media. "
+        "Predictions are not certified safety findings and do not independently "
+        "establish that a safety violation occurred."
+    )
+
+
+def format_date(value):
+    if not value:
+        return "—"
+
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.strftime("%d %b %Y, %I:%M %p")
+    except (ValueError, TypeError):
+        return str(value)
+
+
+def file_key(uploaded_file):
+    """Create a stable key so reruns do not save the same upload again."""
+    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
 
 
 def show_detection_table(detections):
-
-    """Show the class name, confidence, and box for each prediction."""
+    if not detections:
+        st.info("No predictions were returned for this file.")
+        return
 
     rows = []
 
     for item in detections:
-
-        rows.append(
-
-            {
-
-                "Class": item["class_name"],
-
-                "Confidence": f"{item['confidence'] * 100:.1f}%",
-
-                "x1": round(item["x1"], 1),
-
-                "y1": round(item["y1"], 1),
-
-                "x2": round(item["x2"], 1),
-
-                "y2": round(item["y2"], 1),
-
-            }
-
-        )
-
-    st.dataframe(rows, use_container_width=True, hide_index=True)
-
-
-
-
-
-def main():
-
-    """Build the page from top to bottom."""
-
-    # This must be the first Streamlit command.
-
-    st.set_page_config(
-
-        page_title="BuildGuard AI",
-
-        page_icon="🦺",
-
-        layout="wide",
-
-        initial_sidebar_state="expanded",
-
-    )
-
-    apply_design()
-
-
-
-    # A short status panel on the left. It does not run any detection.
-
-    with st.sidebar:
-
-        st.header("BuildGuard AI")
-
-        st.write("Construction safety website")
-
-        model_ready = detection.model_file_exists()
-
-        st.write("**Model:** best (1).pt" if model_ready else "**Model:** file missing")
-
-        st.write("**Image detection:** on" if model_ready else "**Image detection:** unavailable")
-
-        st.write("**Video detection:** on" if model_ready else "**Video detection:** model unavailable")
-
-        st.write("**Database:** not in use yet")
-
-        st.divider()
-
-        st.write(
-
-            "Upload one or more site photos and click Detect all photos to run the trained image model. "
-
-            "Videos can be analyzed at one frame per second. The history rows are demo data."
-
-        )
-
-
-
-    model_ready = detection.model_file_exists()
-
-
-
-    # 1. Title and introduction.
-
-    st.html(
-
-        """
-
-<div class="hero">
-
-    <p class="eyebrow">Construction safety monitoring</p>
-
-    <h1>BuildGuard AI</h1>
-
-    <p class="lead">
-
-        A college project for construction-site safety monitoring.
-
-        Upload one or more site photos and click Detect all photos to run the trained YOLO model.
-
-        The page shows the predicted boxes, class names, and confidence scores.
-
-        Video detection analyzes one frame per second.
-
-    </p>
-
-</div>
-
-""",
-
-    )
-
-
-
-    # 2. Dashboard cards. The counts are samples, except the model file status.
-
-    st.subheader("Dashboard")
-
-    st.caption("Sample numbers for the layout. They are not live site readings.")
-
-    card_1, card_2, card_3, card_4 = st.columns(4)
-
-    with card_1:
-
-        if model_ready:
-
-            stat_card("Model status", "Ready", "Image model")
-
-        else:
-
-            stat_card("Model status", "Missing", "Image model")
-
-    with card_2:
-
-        stat_card("Files checked by AI", "0", "Demo")
-
-    with card_3:
-
-        stat_card("Open AI alerts", "0", "Demo")
-
-    with card_4:
-
-        stat_card("History rows shown", "4", "Demo")
-
-
-
-    st.write("")
-
-
-
-    # 3 and 4. Upload boxes. Streamlit keeps the file in memory for this visit.
-
-    # Images and videos are analyzed only after their buttons are clicked.
-
-    st.subheader("Upload")
-
-    image_column, video_column = st.columns(2)
-
-
-
-    with image_column:
-
-        # border=True draws a white card around this upload box.
-
-        with st.container(border=True):
-
-            st.markdown("**Photo upload**")
-
-            st.write("Choose one or more site photos, then click Detect all photos.")
-
-            image_files = st.file_uploader(
-
-                "Site photos",
-
-                type=["jpg", "jpeg", "png", "webp"],
-
-                accept_multiple_files=True,
-
-                key="image_upload",
-
-                help="Accepted types: JPG, JPEG, PNG, WEBP. You can select multiple photos.",
-
-            )
-
-            detect_clicked = st.button(
-
-                "Detect all photos",
-
-                type="primary",
-
-                disabled=not image_files,
-
-                key="detect_image_button",
-
-            )
-
-
-
-    with video_column:
-
-        with st.container(border=True):
-
-            st.markdown("**Video upload**")
-
-            st.write("Preview the video, then analyze one frame per second.")
-
-            video_file = st.file_uploader(
-
-                "Site video",
-
-                type=["mp4", "mov", "avi", "webm"],
-
-                key="video_upload",
-
-                help="Accepted types: MP4, MOV, AVI, WEBM. Short videos are recommended.",
-
-            )
-            detect_video_clicked = st.button(
-                "Analyze video",
-                type="primary",
-                disabled=not video_file or not model_ready,
-                key="detect_video_button",
-            )
-
-
-    # Run detection on every selected photo when the button is clicked.
-
-    if detect_clicked and image_files:
-
-        results = []
-
-        for image_file in image_files:
-
-            with st.spinner(f"Running detection on {image_file.name}..."):
-
-                # Pass a fresh in-memory copy so each file starts at byte zero.
-
-                from io import BytesIO
-
-                outcome = detection.detect_image(BytesIO(image_file.getvalue()))
-
-
-
-            results.append({
-
-                "name": image_file.name,
-
-                "size": image_file.size,
-
-                "outcome": outcome,
-
-            })
-
-
-
-        st.session_state["image_detections"] = results
-
-
-    # Analyze the uploaded video only when the user clicks the button.
-    if detect_video_clicked and video_file is not None:
-        with st.spinner("Analyzing video frames. This may take a little while..."):
-            from io import BytesIO
-            video_outcome = video_detection.detect_video(
-                BytesIO(video_file.getvalue()),
-                frame_interval_seconds=1,
-                max_frames=120,
-            )
-        st.session_state["video_detection"] = {
-            "name": video_file.name,
-            "size": video_file.size,
-            "outcome": video_outcome,
+        confidence = float(item.get("confidence", 0) or 0)
+
+        row = {
+            "Predicted class": item.get("class_name", "Unknown"),
+            "Confidence": f"{confidence * 100:.1f}%",
         }
 
-
-    saved_results = st.session_state.get("image_detections", [])
-
-
-
-    # 5. Results.
-
-    st.subheader("Detection results")
-
-    show_model_notice(model_ready)
-
-
-
-    if not image_files and video_file is None:
-
-        st.write("Upload one or more photos or a video above. The preview will appear here.")
-
-
-
-    if image_files:
-
-        st.markdown("**Uploaded photos and results**")
-
-
-
-        for image_file in image_files:
-
-            matching_result = next(
-
-                (
-
-                    item for item in saved_results
-
-                    if item.get("name") == image_file.name
-
-                    and item.get("size") == image_file.size
-
-                ),
-
-                None,
-
+        if item.get("frame_timestamp") is not None:
+            row["Frame time (seconds)"] = round(
+                float(item["frame_timestamp"]), 2
             )
 
+        for coordinate in ("x1", "y1", "x2", "y2"):
+            if item.get(coordinate) is not None:
+                row[coordinate] = round(float(item[coordinate]), 1)
 
+        rows.append(row)
 
-            current_image = (
-
-                matching_result["outcome"]
-
-                if matching_result is not None
-
-                else None
-
-            )
-
-
-
-            st.divider()
-
-            st.markdown(f"**Photo: {image_file.name}**")
-
-
-
-            if current_image is None:
-
-                st.image(image_file.getvalue(), use_container_width=True)
-
-                st.caption("Click Detect all photos to run the trained model.")
-
-            elif not current_image["ok"]:
-
-                st.image(image_file.getvalue(), use_container_width=True)
-
-                st.error(current_image["error"] or "Detection failed.")
-
-            else:
-
-                st.image(
-
-                    current_image["annotated_image"],
-
-                    caption=f"{image_file.name} — predicted boxes",
-
-                    use_container_width=True,
-
-                )
-
-                detections = current_image["detections"]
-
-                st.markdown("**Predicted classes**")
-
-
-
-                if detections:
-
-                    show_detection_table(detections)
-
-                else:
-
-                    st.info(
-
-                        "The model finished and did not predict any class above "
-
-                        "the confidence threshold of 25%. That is not a safety clearance."
-
-                    )
-
-
-
-                st.caption(
-
-                    "Each row is one model prediction. These predictions are not "
-
-                    "certified safety findings and do not by themselves establish a violation."
-
-                )
-
-
-
-    if video_file is not None:
-        st.markdown("**Uploaded video**")
-        st.video(video_file)
-
-        saved_video = st.session_state.get("video_detection")
-        matching_video = (
-            saved_video is not None
-            and saved_video.get("name") == video_file.name
-            and saved_video.get("size") == video_file.size
-        )
-
-        if not matching_video:
-            st.caption("Click Analyze video to run PPE detection on one frame per second.")
-        else:
-            video_outcome = saved_video["outcome"]
-            if not video_outcome["ok"]:
-                st.error(video_outcome["error"] or "Video analysis failed.")
-            else:
-                st.success(
-                    f"Analyzed {video_outcome['total_frames_analyzed']} frames "
-                    f"from a {video_outcome['duration_seconds']:.1f}-second video."
-                )
-                if video_outcome.get("warning"):
-                    st.warning(video_outcome["warning"])
-
-                st.markdown("**Detection summary across sampled frames**")
-                if video_outcome["summary"]:
-                    summary_rows = [
-                        {"Predicted class": class_name, "Predictions": count}
-                        for class_name, count in video_outcome["summary"].items()
-                    ]
-                    st.dataframe(summary_rows, use_container_width=True, hide_index=True)
-                else:
-                    st.info("No classes were predicted in the sampled frames. This is not a safety clearance.")
-
-                st.markdown("**Annotated sampled frames**")
-                for frame_result in video_outcome["frames"]:
-                    st.image(
-                        frame_result["annotated_image"],
-                        caption=(
-                            f"Video timestamp {frame_result['timestamp_label']} — "
-                            f"{frame_result['detection_count']} predictions"
-                        ),
-                        use_container_width=True,
-                    )
-                    if frame_result["detections"]:
-                        show_detection_table(frame_result["detections"])
-
-                st.caption(
-                    "These are model predictions from sampled frames, not certified "
-                    "safety findings and not proof that a violation occurred."
-                )
-
-    # 6. History. Clearly marked as demo data.
-
-    st.subheader("Safety activity / history")
-
-    show_history()
-
-
-
-    st.html(
-
-        """
-
-<p class="footer-note">
-
-    BuildGuard AI · image detection uses models/best (1).pt · video detection samples one frame per second · history rows are demo data.
-
-</p>
-
-""",
-
+    st.dataframe(
+        pd.DataFrame(rows),
+        use_container_width=True,
+        hide_index=True,
     )
 
 
+def save_run_safely(**kwargs):
+    """Save a detection run without hiding a successful model result."""
+    try:
+        return storage.save_detection_run(**kwargs)
+    except Exception as exc:
+        st.warning(
+            "Detection finished, but this run could not be saved to the "
+            f"history database: {exc}"
+        )
+        return None
 
 
+def get_potential_ppe_flags(class_distribution):
+    """Count predictions whose class labels explicitly indicate missing PPE."""
+    total = 0
 
-if __name__ == "__main__":
+    for item in class_distribution:
+        class_name = str(item.get("class_name", "")).strip().lower()
 
-    main()
+        if class_name.startswith("no_") or class_name.startswith("missing_"):
+            total += int(item.get("prediction_count", 0) or 0)
+
+    return total
+
+
+# ---------------------------------------------------------
+# DATABASE INITIALIZATION
+# ---------------------------------------------------------
+
+apply_design()
+
+try:
+    storage.init_db()
+    database_ready = True
+    database_error = None
+except Exception as exc:
+    database_ready = False
+    database_error = str(exc)
+
+
+# ---------------------------------------------------------
+# SIDEBAR NAVIGATION
+# ---------------------------------------------------------
+
+PAGES = [
+    "Overview",
+    "Image Detection",
+    "Video Detection",
+    "Analytics",
+    "Safety Reports",
+    "Detection History",
+    "About & Model",
+]
+
+model_ready = detection.model_file_exists()
+
+with st.sidebar:
+    st.markdown("## 🦺 BuildGuard AI")
+    st.caption("Industrial Safety Command Center")
+    st.divider()
+
+    selected_page = st.radio(
+        "NAVIGATION",
+        PAGES,
+        label_visibility="visible",
+    )
+
+    st.divider()
+
+    st.markdown("**SYSTEM STATUS**")
+
+    if model_ready:
+        st.success("YOLO model available")
+    else:
+        st.error("YOLO model not found")
+
+    if database_ready:
+        st.success("SQLite database ready")
+    else:
+        st.error("Database unavailable")
+
+    st.caption("Image and video analysis run only when requested.")
+
+    st.divider()
+    st.caption("BuildGuard AI · Academic project")
+
+
+# ---------------------------------------------------------
+# LOAD DASHBOARD DATA
+# ---------------------------------------------------------
+
+dashboard_stats = {
+    "total_runs": 0,
+    "image_runs": 0,
+    "video_runs": 0,
+    "failed_runs": 0,
+    "total_predictions": 0,
+}
+
+all_class_distribution = []
+recent_history = []
+
+if database_ready:
+    try:
+        dashboard_stats = storage.get_dashboard_stats()
+        all_class_distribution = storage.get_class_distribution(days=None)
+        recent_history = storage.get_detection_history(limit=10)
+    except Exception as exc:
+        st.error(f"Could not load dashboard information: {exc}")
+
+
+successful_runs = max(
+    0,
+    int(dashboard_stats.get("total_runs", 0) or 0)
+    - int(dashboard_stats.get("failed_runs", 0) or 0),
+)
+
+potential_flags = get_potential_ppe_flags(all_class_distribution)
+
+
+# =========================================================
+# 1. OVERVIEW
+# =========================================================
+
+if selected_page == "Overview":
+
+    show_hero(
+        "Industrial Safety Command Center",
+        "A centralized view of construction-site PPE predictions, "
+        "image and video analysis, detection activity, and safety reports.",
+        "LIVE PROJECT DASHBOARD",
+    )
+
+    if not database_ready:
+        st.error(f"The database could not be initialized: {database_error}")
+
+    st.markdown("### Operational overview")
+    st.caption("Figures below come from saved detection runs in the SQLite database.")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Successful scans", successful_runs)
+
+    with col2:
+        st.metric("AI predictions", dashboard_stats.get("total_predictions", 0))
+
+    with col3:
+        st.metric("Potential PPE flags", potential_flags)
+
+    with col4:
+        st.metric("Failed runs", dashboard_stats.get("failed_runs", 0))
+
+    st.markdown("### Analysis activity")
+
+    activity_col1, activity_col2 = st.columns(2)
+
+    with activity_col1:
+        st.metric("Image analysis runs", dashboard_stats.get("image_runs", 0))
+
+    with activity_col2:
+        st.metric("Video analysis runs", dashboard_stats.get("video_runs", 0))
+
+    st.markdown("### Recent activity")
+
+    if recent_history:
+        history_rows = []
+
+        for item in recent_history:
+            history_rows.append(
+                {
+                    "Run ID": item["id"],
+                    "Date": format_date(item.get("created_at")),
+                    "File": item.get("file_name", "—"),
+                    "Type": str(item.get("source_type", "—")).title(),
+                    "Status": str(item.get("status", "—")).title(),
+                    "Predictions": item.get("prediction_count", 0),
+                }
+            )
+
+        st.dataframe(
+            pd.DataFrame(history_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.info(
+            "No saved detection runs yet. Visit Image Detection or Video "
+            "Detection to analyze your first file."
+        )
+
+    show_notice()
+
+
+# =========================================================
+# 2. IMAGE DETECTION
+# =========================================================
+
+elif selected_page == "Image Detection":
+
+    show_hero(
+        "Image Detection",
+        "Upload construction-site photographs and run the trained YOLO model "
+        "to view predicted PPE classes, confidence scores, and annotated images.",
+        "PHOTO ANALYSIS",
+    )
+
+    if not model_ready:
+        st.error(
+            "The trained model file was not found. Check that "
+            "models/best (1).pt is included in the project."
+        )
+
+    uploaded_images = st.file_uploader(
+        "Choose construction-site photos",
+        type=["jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,
+        key="image_upload",
+    )
+
+    if uploaded_images:
+        st.caption(f"{len(uploaded_images)} photo(s) selected.")
+
+        preview_columns = st.columns(min(len(uploaded_images), 3))
+
+        for index, uploaded_image in enumerate(uploaded_images):
+            with preview_columns[index % len(preview_columns)]:
+                st.image(
+                    uploaded_image.getvalue(),
+                    caption=uploaded_image.name,
+                    use_container_width=True,
+                )
+
+    run_images = st.button(
+        "Run detection on selected photos",
+        type="primary",
+        disabled=not uploaded_images or not model_ready,
+        use_container_width=False,
+    )
+
+    if run_images:
+        results = []
+
+        progress = st.progress(0)
+        status_text = st.empty()
+
+        for index, uploaded_image in enumerate(uploaded_images):
+            status_text.write(f"Analyzing {uploaded_image.name}...")
+
+            try:
+                outcome = detection.detect_image(
+                    BytesIO(uploaded_image.getvalue())
+                )
+            except Exception as exc:
+                outcome = {
+                    "ok": False,
+                    "error": str(exc),
+                    "detections": [],
+                }
+
+            detections = outcome.get("detections", []) or []
+            success = bool(outcome.get("ok"))
+
+            run_id = save_run_safely(
+                source_type="image",
+                file_name=uploaded_image.name,
+                file_size=uploaded_image.size,
+                detections=detections if success else [],
+                status="success" if success else "failed",
+                error=None if success else outcome.get("error", "Detection failed"),
+            )
+
+            results.append(
+                {
+                    "key": file_key(uploaded_image),
+                    "name": uploaded_image.name,
+                    "size": uploaded_image.size,
+                    "outcome": outcome,
+                    "run_id": run_id,
+                }
+            )
+
+            progress.progress((index + 1) / len(uploaded_images))
+
+        st.session_state["buildguard_image_results"] = results
+        status_text.success("Image analysis finished.")
+
+    saved_results = st.session_state.get("buildguard_image_results", [])
+
+    if uploaded_images:
+        st.markdown("### Analysis results")
+
+        for uploaded_image in uploaded_images:
+            current_key = file_key(uploaded_image)
+
+            matching_result = next(
+                (
+                    result
+                    for result in saved_results
+                    if result.get("key") == current_key
+                ),
+                None,
+            )
+
+            if matching_result is None:
+                continue
+
+            outcome = matching_result["outcome"]
+
+            with st.container(border=True):
+                st.markdown(f"#### {uploaded_image.name}")
+
+                if not outcome.get("ok"):
+                    st.error(outcome.get("error") or "Image detection failed.")
+                    continue
+
+                if matching_result.get("run_id") is not None:
+                    st.caption(f"Saved history run ID: {matching_result['run_id']}")
+
+                annotated = outcome.get("annotated_image")
+
+                if annotated is not None:
+                    st.image(
+                        annotated,
+                        caption="YOLO model predictions",
+                        use_container_width=True,
+                    )
+
+                detections = outcome.get("detections", []) or []
+
+                result_col1, result_col2 = st.columns(2)
+
+                with result_col1:
+                    st.metric("Predictions", len(detections))
+
+                with result_col2:
+                    st.metric(
+                        "Potential missing-PPE predictions",
+                        sum(
+                            1 for item in detections
+                            if str(item.get("class_name", "")).lower().startswith(
+                                ("no_", "missing_")
+                            )
+                        ),
+                    )
+
+                if detections:
+                    show_detection_table(detections)
+                else:
+                    st.info(
+                        "The model returned no predictions above its confidence "
+                        "threshold. This does not mean the site is safety-compliant."
+                    )
+
+                st.caption(
+                    "Each row is a model prediction. It is not a verified safety "
+                    "violation or a unique-worker count."
+                )
+
+    show_notice()
+
+
+# =========================================================
+# 3. VIDEO DETECTION
+# =========================================================
+
+elif selected_page == "Video Detection":
+
+    show_hero(
+        "Video Detection",
+        "Analyze uploaded construction-site videos by sampling frames at "
+        "one-second intervals and reviewing the model's predictions over time.",
+        "VIDEO ANALYSIS",
+    )
+
+    if not model_ready:
+        st.error(
+            "The trained model file was not found. Video analysis is unavailable "
+            "until models/best (1).pt is present."
+        )
+
+    uploaded_video = st.file_uploader(
+        "Choose a construction-site video",
+        type=["mp4", "mov", "avi", "webm"],
+        key="video_upload",
+    )
+
+    if uploaded_video:
+        st.video(uploaded_video)
+
+    analyze_video = st.button(
+        "Analyze video",
+        type="primary",
+        disabled=uploaded_video is None or not model_ready,
+    )
+
+    if analyze_video and uploaded_video is not None:
+        with st.spinner("Analyzing sampled video frames. Please wait..."):
+            try:
+                outcome = video_detection.detect_video(
+                    BytesIO(uploaded_video.getvalue()),
+                    frame_interval_seconds=config.VIDEO_FRAME_INTERVAL_SECONDS,
+                    max_frames=config.VIDEO_MAX_FRAMES,
+                )
+            except Exception as exc:
+                outcome = {
+                    "ok": False,
+                    "error": str(exc),
+                    "frames": [],
+                    "summary": {},
+                }
+
+        frames = outcome.get("frames", []) or []
+        flattened_detections = []
+
+        for frame in frames:
+            frame_timestamp = frame.get("timestamp")
+
+            for item in frame.get("detections", []) or []:
+                saved_item = dict(item)
+                saved_item["frame_timestamp"] = frame_timestamp
+                flattened_detections.append(saved_item)
+
+        success = bool(outcome.get("ok"))
+
+        run_id = save_run_safely(
+            source_type="video",
+            file_name=uploaded_video.name,
+            file_size=uploaded_video.size,
+            detections=flattened_detections if success else [],
+            status="success" if success else "failed",
+            duration_seconds=outcome.get("duration_seconds"),
+            frames_analyzed=outcome.get("total_frames_analyzed"),
+            error=None if success else outcome.get("error", "Video analysis failed"),
+        )
+
+        st.session_state["buildguard_video_result"] = {
+            "key": file_key(uploaded_video),
+            "name": uploaded_video.name,
+            "size": uploaded_video.size,
+            "outcome": outcome,
+            "run_id": run_id,
+        }
+
+    saved_video = st.session_state.get("buildguard_video_result")
+    matching_video = (
+        uploaded_video is not None
+        and saved_video is not None
+        and saved_video.get("key") == file_key(uploaded_video)
+    )
+
+    if matching_video:
+        outcome = saved_video["outcome"]
+
+        st.markdown("### Video analysis results")
+
+        if not outcome.get("ok"):
+            st.error(outcome.get("error") or "Video analysis failed.")
+        else:
+            if saved_video.get("run_id") is not None:
+                st.caption(f"Saved history run ID: {saved_video['run_id']}")
+
+            frames = outcome.get("frames", []) or []
+            total_frames = outcome.get("total_frames_analyzed", len(frames))
+            duration = outcome.get("duration_seconds", 0) or 0
+            summary = outcome.get("summary", {}) or {}
+
+            metric1, metric2, metric3 = st.columns(3)
+
+            with metric1:
+                st.metric("Frames analyzed", total_frames)
+
+            with metric2:
+                st.metric("Video duration", f"{float(duration):.1f} sec")
+
+            with metric3:
+                st.metric(
+                    "Predictions across sampled frames",
+                    sum(int(value) for value in summary.values()),
+                )
+
+            if outcome.get("warning"):
+                st.warning(outcome["warning"])
+
+            st.markdown("#### Prediction summary")
+
+            if summary:
+                summary_df = pd.DataFrame(
+                    [
+                        {"Predicted class": name, "Predictions": count}
+                        for name, count in summary.items()
+                    ]
+                )
+                st.dataframe(
+                    summary_df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info(
+                    "No classes were predicted in the sampled frames. "
+                    "This is not a safety clearance."
+                )
+
+            st.markdown("#### Sampled frame review")
+
+            for index, frame in enumerate(frames):
+                timestamp_label = frame.get(
+                    "timestamp_label",
+                    f"{float(frame.get('timestamp', 0) or 0):.1f} sec",
+                )
+
+                with st.expander(
+                    f"Frame {index + 1} · {timestamp_label} · "
+                    f"{frame.get('detection_count', len(frame.get('detections', [])))} predictions",
+                    expanded=(index == 0),
+                ):
+                    if frame.get("annotated_image") is not None:
+                        st.image(
+                            frame["annotated_image"],
+                            use_container_width=True,
+                        )
+
+                    show_detection_table(frame.get("detections", []) or [])
+
+            st.caption(
+                "Video predictions are counted across sampled frames. The same "
+                "person or object may appear in more than one frame."
+            )
+
+    elif uploaded_video:
+        st.caption("Click Analyze video to begin analysis.")
+
+    show_notice()
+
+
+# =========================================================
+# 4. ANALYTICS
+# =========================================================
+
+elif selected_page == "Analytics":
+
+    show_hero(
+        "Analytics & Insights",
+        "Explore saved detection activity, predicted PPE classes, model "
+        "confidence, and the distribution of image and video analysis.",
+        "PROJECT ANALYTICS",
+    )
+
+    if not database_ready:
+        st.error("Analytics are unavailable because the database could not be loaded.")
+    else:
+        selected_days = st.selectbox(
+            "Analysis period",
+            options=[7, 30, 90, 365, None],
+            format_func=lambda value: "All available history" if value is None else f"Last {value} days",
+            index=1,
+        )
+
+        try:
+            summary = storage.get_analytics_summary(days=selected_days)
+            trends = storage.get_daily_detection_trends(days=selected_days)
+            class_distribution = storage.get_class_distribution(days=selected_days)
+            source_stats = storage.get_source_type_stats(days=selected_days)
+            confidence_stats = storage.get_confidence_stats(days=selected_days)
+
+            st.markdown("### Summary")
+
+            a, b, c, d = st.columns(4)
+
+            with a:
+                st.metric("Total runs", summary.get("total_runs", 0))
+
+            with b:
+                st.metric("Successful runs", summary.get("successful_runs", 0))
+
+            with c:
+                st.metric("Failed runs", summary.get("failed_runs", 0))
+
+            with d:
+                st.metric("Predictions", summary.get("total_predictions", 0))
+
+            st.markdown("### Detection trends")
+
+            if trends:
+                trend_df = pd.DataFrame(trends)
+                trend_df["detection_date"] = pd.to_datetime(
+                    trend_df["detection_date"]
+                )
+                trend_df = trend_df.set_index("detection_date")
+
+                st.line_chart(
+                    trend_df[["total_runs", "image_runs", "video_runs"]]
+                )
+
+                st.caption(
+                    "Daily successful analysis runs. Prediction counts are "
+                    "separate because one run can contain many predictions."
+                )
+            else:
+                st.info("No successful detection runs are available for this period.")
+
+            st.markdown("### Predicted class distribution")
+
+            if class_distribution:
+                class_df = pd.DataFrame(class_distribution)
+
+                left, right = st.columns([3, 2])
+
+                with left:
+                    st.bar_chart(
+                        class_df.set_index("class_name")[["prediction_count"]]
+                    )
+
+                with right:
+                    display_df = class_df.rename(
+                        columns={
+                            "class_name": "Class",
+                            "prediction_count": "Predictions",
+                            "average_confidence": "Average confidence",
+                        }
+                    )
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+            else:
+                st.info("No class predictions are available for this period.")
+
+            st.markdown("### Image vs video analysis")
+
+            if source_stats:
+                source_df = pd.DataFrame(source_stats)
+
+                source_df["source_type"] = source_df["source_type"].str.title()
+                source_df = source_df.rename(
+                    columns={
+                        "source_type": "Source",
+                        "total_runs": "Successful runs",
+                        "prediction_count": "Predictions",
+                    }
+                )
+
+                st.dataframe(
+                    source_df,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.info("No image or video analysis runs are available yet.")
+
+            st.markdown("### Model confidence")
+
+            confidence_col1, confidence_col2, confidence_col3 = st.columns(3)
+
+            average_confidence = confidence_stats.get("average_confidence")
+            minimum_confidence = confidence_stats.get("minimum_confidence")
+            maximum_confidence = confidence_stats.get("maximum_confidence")
+
+            with confidence_col1:
+                st.metric(
+                    "Average confidence",
+                    "—" if average_confidence is None
+                    else f"{float(average_confidence) * 100:.1f}%",
+                )
+
+            with confidence_col2:
+                st.metric(
+                    "Minimum confidence",
+                    "—" if minimum_confidence is None
+                    else f"{float(minimum_confidence) * 100:.1f}%",
+                )
+
+            with confidence_col3:
+                st.metric(
+                    "Maximum confidence",
+                    "—" if maximum_confidence is None
+                    else f"{float(maximum_confidence) * 100:.1f}%",
+                )
+
+            st.caption(
+                "Confidence describes the model's prediction score. It is not "
+                "a measure of worker safety or model accuracy."
+            )
+
+        except Exception as exc:
+            st.error(f"Could not generate analytics: {exc}")
+
+
+# =========================================================
+# 5. SAFETY REPORTS
+# =========================================================
+
+elif selected_page == "Safety Reports":
+
+    show_hero(
+        "Safety Reports",
+        "Generate downloadable PDF summaries for individual image and video "
+        "detection runs saved in the project database.",
+        "REPORT CENTER",
+    )
+
+    if not database_ready:
+        st.error("Reports are unavailable because the database could not be loaded.")
+    else:
+        try:
+            report_history = storage.get_detection_history(limit=500)
+        except Exception as exc:
+            report_history = []
+            st.error(f"Could not load report history: {exc}")
+
+        if not report_history:
+            st.info(
+                "No saved detection runs are available yet. Analyze an image "
+                "or video first, then return here to generate its report."
+            )
+        else:
+            report_options = {}
+
+            for item in report_history:
+                label = (
+                    f"Run #{item['id']} · "
+                    f"{item.get('file_name', 'Unknown file')} · "
+                    f"{str(item.get('source_type', '')).title()} · "
+                    f"{format_date(item.get('created_at'))}"
+                )
+                report_options[label] = item["id"]
+
+            selected_report_label = st.selectbox(
+                "Choose a detection run",
+                list(report_options.keys()),
+            )
+
+            selected_run_id = report_options[selected_report_label]
+
+            try:
+                details = storage.get_run_details(selected_run_id)
+            except Exception as exc:
+                details = None
+                st.error(f"Could not load this detection run: {exc}")
+
+            if details:
+                run = details["run"]
+                predictions = details["predictions"]
+
+                report_col1, report_col2, report_col3 = st.columns(3)
+
+                with report_col1:
+                    st.metric("Run ID", run["id"])
+
+                with report_col2:
+                    st.metric("Predictions", len(predictions))
+
+                with report_col3:
+                    st.metric("Status", str(run["status"]).title())
+
+                st.write(f"**File:** {run['file_name']}")
+                st.write(f"**Type:** {str(run['source_type']).title()}")
+                st.write(f"**Date:** {format_date(run.get('created_at'))}")
+
+                if run.get("status") != "success":
+                    st.warning(
+                        "This run did not complete successfully. Its report "
+                        "will show the saved run information and any available predictions."
+                    )
+
+                if predictions:
+                    st.markdown("#### Saved predictions")
+                    show_detection_table(predictions)
+                else:
+                    st.info("No predictions were saved for this run.")
+
+                summary = {}
+                for prediction in predictions:
+                    class_name = prediction.get("class_name", "Unknown")
+                    summary[class_name] = summary.get(class_name, 0) + 1
+
+                try:
+                    pdf_bytes = generate_pdf_report(
+                        detections=predictions,
+                        source_name=run.get("file_name", "Uploaded file"),
+                        source_type=str(run.get("source_type", "image")).title(),
+                        summary=summary,
+                        timestamp=run.get("created_at"),
+                    )
+
+                    safe_name = "".join(
+                        character if character.isalnum() or character in "-_"
+                        else "_"
+                        for character in str(run.get("file_name", "report"))
+                    )
+
+                    st.download_button(
+                        "Download PDF safety report",
+                        data=pdf_bytes,
+                        file_name=f"BuildGuard_Report_{run['id']}_{safe_name}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                    )
+
+                except Exception as exc:
+                    st.error(f"Could not generate the PDF report: {exc}")
+
+    show_notice()
+
+
+# =========================================================
+# 6. DETECTION HISTORY
+# =========================================================
+
+elif selected_page == "Detection History":
+
+    show_hero(
+        "Detection History",
+        "Search and review saved image and video analysis runs, their "
+        "processing status, and their individual model predictions.",
+        "ACTIVITY LOG",
+    )
+
+    if not database_ready:
+        st.error("History is unavailable because the database could not be loaded.")
+    else:
+        search_col, type_col, status_col = st.columns([2, 1, 1])
+
+        with search_col:
+            search_text = st.text_input(
+                "Search by file name",
+                placeholder="Enter a file name...",
+            )
+
+        with type_col:
+            type_filter = st.selectbox(
+                "Source type",
+                ["All", "Image", "Video"],
+            )
+
+        with status_col:
+            status_filter = st.selectbox(
+                "Run status",
+                ["All", "Success", "Failed"],
+            )
+
+        try:
+            history = storage.get_detection_history(limit=500)
+        except Exception as exc:
+            history = []
+            st.error(f"Could not load detection history: {exc}")
+
+        filtered_history = []
+
+        for item in history:
+            if search_text and search_text.lower() not in str(
+                item.get("file_name", "")
+            ).lower():
+                continue
+
+            if type_filter != "All" and item.get("source_type") != type_filter.lower():
+                continue
+
+            if status_filter != "All" and item.get("status") != status_filter.lower():
+                continue
+
+            filtered_history.append(item)
+
+        st.caption(f"{len(filtered_history)} matching run(s)")
+
+        if filtered_history:
+            history_rows = []
+
+            for item in filtered_history:
+                history_rows.append(
+                    {
+                        "Run ID": item["id"],
+                        "Date": format_date(item.get("created_at")),
+                        "File name": item.get("file_name"),
+                        "Source": str(item.get("source_type", "")).title(),
+                        "Status": str(item.get("status", "")).title(),
+                        "Predictions": item.get("prediction_count", 0),
+                        "Frames": item.get("frames_analyzed") or "—",
+                    }
+                )
+
+            st.dataframe(
+                pd.DataFrame(history_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.markdown("### Run details")
+
+            run_options = {
+                (
+                    f"Run #{item['id']} · {item.get('file_name', 'Unknown')} · "
+                    f"{str(item.get('source_type', '')).title()}"
+                ): item["id"]
+                for item in filtered_history
+            }
+
+            selected_run_label = st.selectbox(
+                "Select a run to inspect",
+                list(run_options.keys()),
+            )
+
+            try:
+                details = storage.get_run_details(
+                    run_options[selected_run_label]
+                )
+            except Exception as exc:
+                details = None
+                st.error(f"Could not load run details: {exc}")
+
+            if details:
+                run = details["run"]
+
+                st.write(f"**File:** {run.get('file_name')}")
+                st.write(f"**Date:** {format_date(run.get('created_at'))}")
+                st.write(f"**Status:** {str(run.get('status')).title()}")
+
+                if run.get("error"):
+                    st.error(run["error"])
+
+                if run.get("duration_seconds") is not None:
+                    st.write(
+                        f"**Video duration:** "
+                        f"{float(run['duration_seconds']):.1f} seconds"
+                    )
+
+                if run.get("frames_analyzed") is not None:
+                    st.write(f"**Frames analyzed:** {run['frames_analyzed']}")
+
+                show_detection_table(details["predictions"])
+
+        else:
+            st.info("No detection runs match these filters.")
+
+    show_notice()
+
+
+# =========================================================
+# 7. ABOUT & MODEL
+# =========================================================
+
+elif selected_page == "About & Model":
+
+    show_hero(
+        "About BuildGuard AI",
+        "An academic project exploring how computer vision can support "
+        "construction-site PPE monitoring through image and video analysis.",
+        "PROJECT & MODEL INFORMATION",
+    )
+
+    st.markdown("### Project overview")
+
+    st.markdown(
+        """
+        BuildGuard AI uses a trained YOLO object-detection model to identify
+        construction-safety-related classes in uploaded photographs and
+        sampled video frames.
+
+        The application combines model inference, a Streamlit interface,
+        SQLite-based detection history, analytics, and downloadable PDF reports.
+        """
+    )
+
+    st.markdown("### Technology stack")
+
+    tech1, tech2, tech3 = st.columns(3)
+
+    with tech1:
+        st.markdown("**AI & computer vision**")
+        st.write("- YOLO / Ultralytics")
+        st.write("- OpenCV")
+        st.write("- Python")
+
+    with tech2:
+        st.markdown("**Application**")
+        st.write("- Streamlit")
+        st.write("- SQLite")
+        st.write("- Pandas")
+
+    with tech3:
+        st.markdown("**Reporting & deployment**")
+        st.write("- ReportLab PDF")
+        st.write("- GitHub")
+        st.write("- Streamlit Community Cloud")
+
+    st.markdown("### Model information")
+
+    st.write("**Model file:** `models/best (1).pt`")
+    st.write(
+        "**Image confidence threshold:** "
+        f"{config.CONFIDENCE_THRESHOLD:.2f}"
+    )
+    st.write(
+        "**Video frame interval:** "
+        f"{config.VIDEO_FRAME_INTERVAL_SECONDS} second(s)"
+    )
+    st.write(
+        "**Maximum video frames:** "
+        f"{config.VIDEO_MAX_FRAMES}"
+    )
+    st.write(
+        "**Model availability:** "
+        + ("Available" if model_ready else "File not found")
+    )
+
+    st.markdown("### Reported validation results")
+
+    st.caption(
+        "The following figures are the validation results reported for this "
+        "project's trained model."
+    )
+
+    metric1, metric2, metric3, metric4 = st.columns(4)
+
+    with metric1:
+        st.metric("Precision", "0.891")
+
+    with metric2:
+        st.metric("Recall", "0.644")
+
+    with metric3:
+        st.metric("mAP50", "0.720")
+
+    with metric4:
+        st.metric("mAP50–95", "0.511")
+
+    st.write("Validation set: 200 images · 2,961 labeled instances.")
+
+    st.markdown("### Important limitations")
+
+    st.warning(
+        """
+        - Model predictions can be incorrect or incomplete.
+        - A missing-PPE class prediction is not proof that a worker violated a rule.
+        - A lack of predictions does not establish that a site is safe.
+        - Video analysis samples frames; it does not continuously inspect every moment.
+        - Prediction counts across video frames are not unique-person counts.
+        - Model confidence is not the same as model accuracy.
+        - This academic project is a decision-support demonstration, not a
+          certified safety-inspection or compliance system.
+        """
+    )
+
+    st.markdown("### Project purpose")
+
+    st.write(
+        "The goal of BuildGuard AI is to demonstrate how computer vision "
+        "can help organize and review potential PPE-related observations "
+        "from construction-site media."
+    )
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+
+st.divider()
+
+st.caption(
+    "BuildGuard AI · Academic construction-safety monitoring project · "
+    "AI predictions require human review."
+)
