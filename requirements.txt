@@ -1,8 +1,31 @@
-# Website.
+
+# ==========================================
+# BuildGuard AI - Project Dependencies
+# ==========================================
+
+# 1. Web Application
 streamlit
 
-# Image detection with the trained YOLO weights.
-opencv-python
+# 2. AI and Object Detection
 ultralytics
+torch
+torchvision
+
+# 3. Computer Vision and Image Processing
+opencv-python-headless
 numpy
 Pillow
+
+# 4. PDF Report Generation
+reportlab
+
+# 5. Data Analysis and Visualization
+pandas
+matplotlib
+plotly
+
+# 6. Excel and CSV Export
+openpyxl
+
+# 7. Date and Time Utilities
+python-dateutil
