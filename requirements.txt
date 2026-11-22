@@ -3,8 +3,7 @@
 # ==========================================
 
 # 1. Web Application
-streamlit>=1.42.0
-Authlib>=1.3.2
+streamlit
 
 # 2. AI and Object Detection
 ultralytics
