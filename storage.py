@@ -266,10 +266,12 @@ def get_daily_detection_trends(days=30):
             SELECT
                 date(r.created_at) AS detection_date,
                 COUNT(DISTINCT r.id) AS total_runs,
-                SUM(CASE WHEN r.source_type = 'image'
-                    THEN 1 ELSE 0 END) AS image_runs,
-                SUM(CASE WHEN r.source_type = 'video'
-                    THEN 1 ELSE 0 END) AS video_runs,
+                COUNT(DISTINCT CASE
+                    WHEN r.source_type = 'image' THEN r.id
+                END) AS image_runs,
+                COUNT(DISTINCT CASE
+                    WHEN r.source_type = 'video' THEN r.id
+                END) AS video_runs,
                 COUNT(p.id) AS prediction_count
             FROM detection_runs AS r
             LEFT JOIN predictions AS p ON p.run_id = r.id
@@ -282,7 +284,6 @@ def get_daily_detection_trends(days=30):
         ).fetchall()
 
     return [dict(row) for row in rows]
-
 
 def get_class_distribution(days=30):
     """Return prediction counts grouped by detected class."""
